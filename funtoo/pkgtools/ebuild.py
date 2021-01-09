@@ -16,7 +16,6 @@ hub = None
 
 def __init__():
 	hub.MANIFEST_LINES = defaultdict(set)
-	hub.FETCH_SUBSYSTEM = "fastpull"
 
 
 class BreezyError(Exception):
@@ -40,7 +39,7 @@ class Artifact(Fetchable):
 		self._final_name = final_name
 		self.final_data = None
 		self._final_path = final_path
-		self.catpkgs = set()
+		self.breezybuilds = set()
 
 	@property
 	def temp_path(self):
@@ -65,13 +64,10 @@ class Artifact(Fetchable):
 			return self._final_name
 
 	async def fetch(self):
-		await hub.pkgtools.download.ensure_fetched(self)
+		await self.ensure_fetched()
 
 	def is_fetched(self):
 		return os.path.exists(self.final_path)
-
-	async def ensure_fetched(self):
-		await self.fetch()
 
 	def record_final_data(self, final_data):
 		self.final_data = final_data
@@ -102,6 +98,67 @@ class Artifact(Fetchable):
 
 	def exists(self):
 		return self.is_fetched()
+
+	async def ensure_completed(self, breezybuild=None) -> bool:
+		"""
+		This function ensures that we can 'complete' the artifact -- meaning we have its hash data in the integrity database.
+		If this hash data is not found, then we need to fetch the artifact.
+
+		This function returns True if we do indeed have the artifact available to us, and False if there was some error
+		which prevents this.
+		"""
+		
+		if not breezybuild:
+			# Since we are using this outside of the context of an autogen, and there is no associated BreezyBuild,
+			# using the distfile integrity database doesn't make sense. So just ensure the file is fetched:
+			return await self.ensure_fetched()
+
+		integrity_item = hub.merge.deepdive.get_distfile_integrity(breezybuild.catpkg, distfile=self.final_name)
+		if integrity_item is not None:
+			self.final_data = integrity_item["final_data"]
+			return True
+		else:
+			return await self.ensure_fetched(breezybuild=breezybuild)
+
+	async def ensure_fetched(self, breezybuild=None) -> bool:
+		"""
+		This function ensures that the artifact is 'fetched' -- in other words, it exists locally. This means we can
+		calculate its hashes or extract it.
+
+		Returns a boolean with True indicating success and False failure.
+		"""
+		if self.is_fetched():
+			if self.final_data is not None:
+				return True
+			else:
+				# We will hit this condition only if for some reason we blew away our Distfile Integrity database or an
+				# entry for a distfile in it. In this scenario -- the file is fetched, so it's on disk, but we don't have
+				# any hashes for it yet. We want to re-populate the Distfile Integrity database if necessary so we don't
+				# keep recalculating hashes unnecessarily and they are persistently stored
+				#
+				# We can only do this if we are called from ensure_completed().
+				if breezybuild:
+					integrity_item = hub.merge.deepdive.get_distfile_integrity(breezybuild.catpkg, distfile=self.final_name)
+					if integrity_item is not None:
+						self.final_data = integrity_item["final_data"]
+					else:
+						final_data = hub.pkgtools.download.calc_hashes(self.final_path)
+						hub.merge.deepdive.store_distfile_integrity(breezybuild.catpkg, self.final_name, final_data)
+						self.record_final_data(final_data)
+				else:
+					final_data = hub.pkgtools.download.calc_hashes(self.final_path)
+					self.record_final_data(final_data)
+				return True
+		else:
+			active_dl = hub.pkgtools.download.get_download(self.final_name)
+			if active_dl is not None:
+				# Active download -- wait for it to finish:
+				logging.info(f"Waiting for {self.final_name} download to finish")
+				return await active_dl.wait_for_completion(self)
+			else:
+				# No active download for this file -- start one:
+				dl_file = hub.pkgtools.download.Download(self)
+				return await dl_file.download()
 
 
 def aggregate(meta_list):
@@ -195,8 +252,8 @@ class BreezyBuild:
 			# This records that the artifact is used by this catpkg, because an Artifact can be shared among multiple
 			# catpkgs. This is used for the integrity database writes:
 
-			if self.catpkg not in artifact.catpkgs:
-				artifact.catpkgs.add(self.catpkg)
+			if self not in artifact.breezybuilds:
+				artifact.breezybuilds.add(self)
 
 			if not artifact.final_data:
 

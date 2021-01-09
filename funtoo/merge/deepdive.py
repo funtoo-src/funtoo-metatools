@@ -24,20 +24,13 @@ will be running on a particular release, kit and branch, any reads and writes wi
 we don't need to arbitrate/lock access to the Distfile Integrity DB. The Architecture makes it safe.
 """
 
-
-def __virtual__(hub):
-	has_mongo = getattr(hub, "HAS_MONGO", False)
-	if not has_mongo:
-		print("MongoDB functionality disabled. Import funtoo.pkgtools sub if this is needed.")
-	return has_mongo
-
+hub = None
 
 def __init__():
 	import pymongo
 	from pymongo import MongoClient
 
 	mc = MongoClient()
-
 	dd = hub.DEEPDIVE = mc.metatools.deepdive
 	dd.create_index("atom")
 	dd.create_index([("kit", pymongo.ASCENDING), ("category", pymongo.ASCENDING), ("package", pymongo.ASCENDING)])

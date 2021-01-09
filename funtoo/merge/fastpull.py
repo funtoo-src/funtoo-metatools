@@ -1,6 +1,11 @@
 #!/usr/bin/python3
+
 import logging
 import os
+import random
+
+import pymongo
+from pymongo import MongoClient
 
 """
 This sub implements an even higher-level download API than `download.py`. Think of fastpull as a combination on-disk
@@ -34,21 +39,21 @@ hashes
 final_names (indexed list, since it could have many possible final names)
 last_attempted_on
 fetch_log (updated for every fetch, even failures.)
-
-
-
-
-
-
 requested_by (kit, branch, atom, date?) would be cool.
 
 """
 
 hub = None
 
+def __init__():
+	mc = MongoClient()
+	fp = hub.FASTPULL = mc.metatools.fastpull
+	fp.create_index([("hashes.sha512", pymongo.ASCENDING), ("filename", pymongo.ASCENDING)], unique=True)
+	fp.create_index([("rand_id", pymongo.ASCENDING)], unique=True)
 
-def get_disk_path(final_data):
-	sh = final_data["hashes"]["sha512"]
+
+def get_fastpull_path(artifact):
+	sh = artifact.final_data["hashes"]["sha512"]
 	return os.path.join(hub.MERGE_CONFIG.fastpull_path, sh[:2], sh[2:4], sh[4:6], sh)
 
 
@@ -68,7 +73,7 @@ def complete_artifact(artifact):
 	Manifest/hash validation on the client side, this is because we want to ensure that what was downloaded by the
 	client matches what was set by the server. But we don't have such checks on just the server side.
 	"""
-	fp = get_disk_path(artifact.final_data)
+	fp = get_fastpull_path(artifact)
 	if not fp:
 		return None
 	hashes = hub.pkgtools.download.calc_hashes(fp)
@@ -81,37 +86,29 @@ def complete_artifact(artifact):
 	return artifact
 
 
-def inject_into_fastpull(final_path, final_data=None, symlink=False):
-	"""
-	Given a file pointed to by final_path, insert this file into the fastpull database. We will take care of generating
-	hashes (final_data) if none are passed to us. We use this to determine the name of the file in fastpull (based on
-	sha512.)
-	"""
-	if final_data is None:
-		final_data = hub.pkgtools.download.calc_hashes(final_path)
+def create_fastpull_db_entry(artifact, rand_id=None):
+	db_entry = {}
+	db_entry["hashes"] = artifact.final_data
+	db_entry["filename"] = artifact.final_name
+	if rand_id:
+		db_entry["rand_id"] = rand_id
+	else:
+		db_entry["rand_id"] = ''.join(random.choice('abcdef0123456789') for _ in range(128))
+	hub.FASTPULL.insert_one(db_entry)
 
-	fastpull_path = get_disk_path(final_data)
+
+def inject_into_fastpull(artifact):
+	"""
+	We assume that we have a downloaded artifact. Then we attempt to add to our fastpull database.
+	"""
+
+	fastpull_path = get_fastpull_path(artifact)
 	if not os.path.exists(fastpull_path):
 		try:
 			os.makedirs(os.path.dirname(fastpull_path), exist_ok=True)
-			if symlink:
-				os.symlink(final_path, fastpull_path)
-			else:
-				os.link(final_path, fastpull_path)
+			os.link(artifact.final_path, fastpull_path)
 		except Exception as e:
 			# Multiple doits running in parallel, trying to link the same file -- could cause exceptions:
 			logging.error(f"Exception encountered when trying to link into fastpull (may be harmless) -- {repr(e)}")
+	create_fastpull_db_entry(artifact)
 
-
-def add_artifact(artifact):
-	"""Add an artifact to the persistent download queue."""
-	pass
-
-
-async def distfile_service():
-	pass
-
-
-async def fastpull_spider():
-	"""Start the fastpull spider, which will attempt to download queued artifacts and add them to fastpull db."""
-	pass

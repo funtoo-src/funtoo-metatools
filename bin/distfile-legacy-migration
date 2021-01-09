@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+
+# The purpose of this script is to migrate our legacy fastpull database from MySQL to MongoDB.
+# It will read all contents of the older MySQL database, and create records for Mongo.
+
+import argparse
+import asyncio
+import sys
+from collections import defaultdict, OrderedDict
+from concurrent.futures import as_completed
+from concurrent.futures.thread import ThreadPoolExecutor
+from datetime import datetime
+
+from dict_tools.data import NamespaceDict
+
+from merge_utils.config import Configuration
+from merge_utils.hub import Hub
+from merge_utils.db_core import FastPullDatabase
+
+async def main_thread():
+	db = FastPullDatabase()
+
+
+	for df in db.query(db.Distfile):
+
+	pass
+
+
+if __name__ == "__main__":
+	asyncio.get_event_loop().run_until_complete(main_thread())
