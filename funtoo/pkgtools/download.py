@@ -83,8 +83,6 @@ HASHES = ["sha256", "sha512", "blake2b"]
 #       declarative pipeline.
 
 
-
-
 class Download:
 
 	"""
@@ -148,8 +146,8 @@ class Download:
 					integrity_keys = {}
 					for artifact in self.artifacts:
 						artifact.record_final_data(final_data)
-						for catpkg in artifact.catpkgs:
-							integrity_keys[(catpkg, artifact.final_name)] = True
+						for breezybuild in artifact.breezybuilds:
+							integrity_keys[(breezybuild.catpkg, artifact.final_name)] = True
 
 					# For every final_name referenced by a catpkg, create a distfile integrity entry. We use integrity_keys to
 					# avoid duplicate records.
@@ -160,7 +158,7 @@ class Download:
 					# We only need to insert once into fastpull since it is the same underlying file.
 
 					if hub.MERGE_CONFIG.fastpull_enabled:
-						hub.merge.fastpull.inject_into_fastpull(self.artifacts[0].final_path, final_data=final_data)
+						hub.merge.fastpull.inject_into_fastpull(artifact)
 
 		for future in self.futures:
 			future.set_result(success)

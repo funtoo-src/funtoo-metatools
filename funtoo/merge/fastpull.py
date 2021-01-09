@@ -45,16 +45,12 @@ requested_by (kit, branch, atom, date?) would be cool.
 
 hub = None
 
+
 def __init__():
 	mc = MongoClient()
 	fp = hub.FASTPULL = mc.metatools.fastpull
 	fp.create_index([("hashes.sha512", pymongo.ASCENDING), ("filename", pymongo.ASCENDING)], unique=True)
 	fp.create_index([("rand_id", pymongo.ASCENDING)], unique=True)
-
-
-def get_fastpull_path(artifact):
-	sh = artifact.final_data["hashes"]["sha512"]
-	return os.path.join(hub.MERGE_CONFIG.fastpull_path, sh[:2], sh[2:4], sh[4:6], sh)
 
 
 def complete_artifact(artifact):
@@ -73,7 +69,7 @@ def complete_artifact(artifact):
 	Manifest/hash validation on the client side, this is because we want to ensure that what was downloaded by the
 	client matches what was set by the server. But we don't have such checks on just the server side.
 	"""
-	fp = get_fastpull_path(artifact)
+	fp = artifact.fastpull_path
 	if not fp:
 		return None
 	hashes = hub.pkgtools.download.calc_hashes(fp)
@@ -93,7 +89,7 @@ def create_fastpull_db_entry(artifact, rand_id=None):
 	if rand_id:
 		db_entry["rand_id"] = rand_id
 	else:
-		db_entry["rand_id"] = ''.join(random.choice('abcdef0123456789') for _ in range(128))
+		db_entry["rand_id"] = "".join(random.choice("abcdef0123456789") for _ in range(128))
 	hub.FASTPULL.insert_one(db_entry)
 
 
@@ -111,4 +107,3 @@ def inject_into_fastpull(artifact):
 			# Multiple doits running in parallel, trying to link the same file -- could cause exceptions:
 			logging.error(f"Exception encountered when trying to link into fastpull (may be harmless) -- {repr(e)}")
 	create_fastpull_db_entry(artifact)
-
