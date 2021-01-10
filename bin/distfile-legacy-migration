@@ -48,7 +48,7 @@ async def main_thread():
 				"rand_id" : df.rand_id,
 				"filename" : df.filename,
 				"src_uri" : df.src_uri,
-				"fetched_on": df.fetched_on,
+				"fetched_on": df.last_fetched_on,
 				"hashes" : { "size" : df.size, "sha512": df.digest }
 			}
 			pkg_data = []
