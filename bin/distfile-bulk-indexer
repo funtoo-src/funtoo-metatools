@@ -52,7 +52,7 @@ def main_thread(path):
 
 
 if __name__ == "__main__":
-	hub = Hub()
+	hub = Hub(lazy=False)
 	hub.add("funtoo/merge")
 	hub.add("funtoo/pkgtools")
 	hub.MERGE_CONFIG = config = Configuration()
