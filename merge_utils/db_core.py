@@ -134,7 +134,7 @@ class FastPullDatabase(Database):
 		self.MissingRequestedFile = MissingRequestedFile
 
 		self.engine = create_engine(
-			app_config.db_connection("fastpull"), strategy="threadlocal", pool_size=40, max_overflow=80
+			app_config.config["database"]["fastpull"], strategy="threadlocal", pool_size=40, max_overflow=80
 		)
 		self.Base.metadata.create_all(self.engine)
 
