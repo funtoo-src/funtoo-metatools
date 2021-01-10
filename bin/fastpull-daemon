@@ -68,7 +68,7 @@ class Application(tornado.web.Application):
 
 
 if __name__ == "__main__":
-	hub = Hub()
+	hub = Hub(lazy=False)
 	hub.add("funtoo/merge")
 	application = Application()
 	http_server = HTTPServer(application, xheaders=True)
