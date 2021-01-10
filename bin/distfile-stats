@@ -1,72 +1,18 @@
 #!/usr/bin/python3
 
-# The purpose of this executable is to point to a directory path with existing distfiles, and grab them all and
-# add them to fastpull.
+# If you load stuff into deepdive, this tool can then be run and will show you stats on what
+# percentage of distfiles for each kit are in your fastpull database.
 
-# TODO: current architecture involves running merge-kits and then distfile-spider all on a separate system. But
-#       this can create issues with files that are periodically synced such as vivaldi and vim, which are not
-#       always current. This means we may want a different architecture here where we remotely send data to
-#       the distfile spider and it works in a "dumb" capacity to do what it's told.
+# It also contains code that I started to work on for the new distfile spider. So it's sort
+# of a mish-mash.
 
 import asyncio
 import json
-import logging
-import multiprocessing
 import os
-import sys
-from queue import Queue
-
-import pop.hub
+from argparse import ArgumentParser
 from dict_tools.data import NamespaceDict
-
-from merge_utils.config import Configuration
 from funtoo.merge.tree import GitTree
-
-hub_logger = logging.getLogger("pop.hub")
-hub_logger.setLevel(logging.DEBUG)
-hub = pop.hub.Hub()
-
-num_indexers = multiprocessing.cpu_count()
-main_queue = Queue(maxsize=1000)
-terminus = "ALL_DONE_WITH_WORK"
-
-
-def file_walker(path):
-	for root, dirs, files in os.walk(path, topdown=False):
-		for name in files:
-			main_queue.put(os.path.join(root, name))
-	for count in range(0, num_indexers):
-		main_queue.put(terminus)
-
-
-def file_indexer():
-	while True:
-		next_file = main_queue.get()
-		if next_file == terminus:
-			break
-		print(next_file)
-		hub.pkgtools.fastpull.inject_into_fastpull(next_file, symlink=True)
-
-
-async def do_distfile_fetch(file):
-	if file["src_uri"][0].startswith("mirror://"):
-		real_uri = hub.merge.metadata.expand_thirdpartymirror(tp_mirrors, file["src_uri"][0])
-		if real_uri is None:
-			print(f"{file['src_uri'][0]} expanded to None, skipping.")
-			return
-	else:
-		real_uri = file["src_uri"][0]
-	slash_split = real_uri.split("/")
-	if len(slash_split) == 0:
-		# invalid, continue
-		print(f"Invalid, skipping. {real_uri}")
-		return
-	elif slash_split[0] not in ["http:", "https:", "ftp:"]:
-		print(f"URL invalid, skipping: {real_uri}")
-		return
-	a = hub.pkgtools.ebuild.Artifact(url=real_uri, final_name=file["name"])
-	if not a.is_fetched():
-		print(real_uri, file["name"])
+from merge_utils.hub import Hub
 
 
 def sizeof_fmt(num, suffix="B"):
@@ -122,6 +68,11 @@ def add_stats(main_stats, new_stats):
 		main_stats.skip[key] = main_stats.skip[skip_key] | new_stats.skip[skip_key]
 
 
+# While useful for statistics, this next function has a flaw -- it kind of sucks that we have to load
+# stuff into deepdive before we can process things. At least if we are wanting to start a spider run.
+# We would want to just read it from the JSON.
+
+
 async def distfile_stats():
 	global_stats = create_stats()
 	out = []
@@ -154,7 +105,7 @@ async def distfile_stats():
 						continue
 
 					sz_bytes = int(file["size"])
-					dp = hub.pkgtools.fastpull.get_disk_path(final_data=file)
+					dp = hub.merge.fastpull.get_disk_path(file["hashes"]["sha512"])
 					if os.path.exists(dp):
 						stats.bytes_exist += sz_bytes
 						stats.files_exist += 1
@@ -170,30 +121,26 @@ async def distfile_stats():
 
 
 if __name__ == "__main__":
-	sub_name = os.path.basename(sys.argv[0])
-	int_g = [sub_name, "pkgtools"]
-	hub.pop.conf.integrate(int_g, cli=sub_name, roots=True, loader="yaml", logs=False)
+	hub = Hub()
 
-	hub.MERGE_CONFIG = config = Configuration()
-	hub.RELEASE = hub.OPT["distfile-tool"]["release"]
+	ap = ArgumentParser()
+	ap.add_argument("release")
+	ap.add_argument("--out", default=None)
+	args = ap.parse_args()
+
+	hub.add("funtoo/merge", release=args.release)
+	hub.add("funtoo/pkgtools")
+
 	hub.FIXUP_REPO = GitTree(
-		hub,
 		"kit-fixups",
-		config.branch("kit-fixups"),
-		url=config.kit_fixups,
-		root=config.source_trees + "/kit-fixups",
+		hub.MERGE_CONFIG.branch("kit-fixups"),
+		url=hub.MERGE_CONFIG.kit_fixups,
+		root=hub.MERGE_CONFIG.source_trees + "/kit-fixups",
 	)
 
-	hub.pop.sub.add("funtoo.merge")
-	hub.pop.sub.add("funtoo.pkgtools", omit_class=False)
-
-	hub.pkgtools.autogen.load_autogen_config()
 	hub.FIXUP_REPO.initialize()
 	hub.KIT_GROUPS = list(hub.merge.foundations.kit_groups())
-	hub.OUT = hub.OPT["distfile-tool"]["out"]
-	tp_mirrors = hub.merge.metadata.get_thirdpartymirrors(
-		os.path.expanduser("~/repo_tmp/dest-trees/meta-repo/kits/core-kit")
-	)
+	hub.OUT = args.out
 
 	loop = asyncio.get_event_loop()
 

@@ -6,7 +6,6 @@ import traceback
 import argparse
 import os
 import logging
-from merge_utils.config import Configuration
 from merge_utils.hub import Hub
 
 logging.basicConfig(level=logging.INFO)
@@ -36,12 +35,11 @@ if __name__ == "__main__":
 	hub = Hub()
 	hub.OPT = parse_args()
 	kwargs = {}
-	for arg in ["fetcher", "out_path", "start_path", "release", "kit", "branch"]:
+	for arg in ["fetcher", "out_path", "start_path"]:
 		kwargs[arg] = getattr(hub.OPT, arg)
-	hub.MERGE_CONFIG = config = Configuration(fastpull=hub.OPT.fastpull)
 
 	hub.add("funtoo/pkgtools")
-	hub.add("funtoo/merge")
+	hub.add("funtoo/merge", fastpull=hub.OPT.fastpull)
 
 	errors = asyncio.get_event_loop().run_until_complete(hub.pkgtools.autogen.start(**kwargs))
 

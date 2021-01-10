@@ -101,7 +101,7 @@ class Artifact(Fetchable):
 	@property
 	def fastpull_path(self):
 		sh = self._final_data["hashes"]["sha512"]
-		return os.path.join(hub.MERGE_CONFIG.fastpull_path, sh[:2], sh[2:4], sh[4:6], sh)
+		return hub.merge.fastpull.get_disk_path(sh)
 
 	async def ensure_completed(self) -> bool:
 		"""
@@ -135,6 +135,7 @@ class Artifact(Fetchable):
 		Returns a boolean with True indicating success and False failure.
 		"""
 		if self.is_fetched():
+			print("IS FETCHED")
 			if self._final_data is not None:
 				# Nothing to do.
 				return True
@@ -152,6 +153,7 @@ class Artifact(Fetchable):
 					self._final_data = hub.pkgtools.download.calc_hashes(self.final_path)
 				return True
 		else:
+			print("IS NOT FETCHED")
 			active_dl = hub.pkgtools.download.get_download(self.final_name)
 			if active_dl is not None:
 				# Active download -- wait for it to finish:
@@ -160,7 +162,9 @@ class Artifact(Fetchable):
 			else:
 				# No active download for this file -- start one:
 				dl_file = hub.pkgtools.download.Download(self)
+				print("GOING TO AWAIT DOWNLOAD")
 				return await dl_file.download()
+				print("AWAIT DONE")
 
 
 def aggregate(meta_list):

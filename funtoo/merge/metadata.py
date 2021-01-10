@@ -784,23 +784,37 @@ def get_outpath(repo_obj):
 	return os.path.join(hub.MERGE_CONFIG.temp_path, "kit_cache", f"{repo_obj.name}-{repo_obj.branch}")
 
 
+def load_json(fn, validate=True):
+	"""
+	This is a stand-alone function for loading kit cache JSON data, in case someone like me wants to manually load
+	it and look at it. It will check to make sure the CACHE_DATA_VERSION matches what this code is designed to
+	inspect, by default.
+	"""
+	with open(fn, "r") as f:
+		kit_cache_data = json.loads(f.read())
+		if validate:
+			if "cache_data_version" not in kit_cache_data:
+				logging.error("JSON invalid or missing cache_data_version.")
+				return None
+			elif kit_cache_data["cache_data_version"] != CACHE_DATA_VERSION:
+				logging.error(f"Cache data version is {kit_cache_data['cache_data_version']} but needing {CACHE_DATA_VERSION}")
+				return None
+		return kit_cache_data
+
+
 def fetch_kit(repo_obj):
 	"""
 	Grab cached metadata for an entire kit from serialized JSON, with a single query.
 	"""
 	outpath = get_outpath(repo_obj)
-	valid_cache = False
+	kit_cache_data = None
 	if os.path.exists(outpath):
-		with open(outpath, "r") as f:
-			kit_cache_data = json.loads(f.read())
-			if "cache_data_version" not in kit_cache_data or kit_cache_data["cache_data_version"] != CACHE_DATA_VERSION:
-				pass
-			else:
-				valid_cache = True
-	if valid_cache:
+		kit_cache_data = load_json(outpath)
+	if kit_cache_data is not None:
 		repo_obj.KIT_CACHE = kit_cache_data["atoms"]
 		repo_obj.METADATA_ERRORS = kit_cache_data["metadata_errors"]
 	else:
+		# Missing kit cache or different CACHE_DATA_VERSION will cause it to be thrown away so we can regenerate it.
 		repo_obj.KIT_CACHE = {}
 		repo_obj.METADATA_ERRORS = {}
 	repo_obj.PROCESSING_WARNINGS = []

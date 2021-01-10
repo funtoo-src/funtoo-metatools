@@ -55,7 +55,6 @@ def __init__():
 
 @asynccontextmanager
 async def start_download(download):
-	assert id(asyncio.get_running_loop()) == id(hub.THREAD_CTX.loop)
 	"""
 	Automatically record the download as being active, and remove from our list when complete.
 	"""
@@ -113,7 +112,6 @@ class Download:
 
 	def wait_for_completion(self, artifact):
 		self.artifacts.append(artifact)
-		assert id(asyncio.get_running_loop()) == id(hub.THREAD_CTX.loop)
 		fut = asyncio.get_running_loop().create_future()
 		self.futures.append(fut)
 		return fut
@@ -130,16 +128,17 @@ class Download:
 		file, they will get True on success and False on failure (self.futures holds futures for others waiting
 		on this file, and we will future.set_result() with the boolean return code as well.)
 		"""
-		assert id(asyncio.get_running_loop()) == id(hub.THREAD_CTX.loop)
+		print("starting download")
+		print(self.artifacts[0].final_path)
 		slot = await acquire_download_slot()
 		async with slot:
 			async with start_download(self):
-				assert id(asyncio.get_running_loop()) == id(hub.THREAD_CTX.loop)
 				success = True
-
+				print("NOW STARTING DOWNLOAD")
 				try:
 					final_data = await _download(self.artifacts[0])
 				except hub.pkgtools.fetch.FetchError as fe:
+					logging.error(fe)
 					success = False
 
 				if success:
@@ -154,12 +153,6 @@ class Download:
 
 					for catpkg, final_name in integrity_keys.keys():
 						hub.merge.deepdive.store_distfile_integrity(catpkg, final_name, final_data)
-
-					# We only need to insert once into fastpull since it is the same underlying file.
-
-					if hub.MERGE_CONFIG.fastpull_enabled:
-						# TODO: expand this to create a DB entry in fastpull db to
-						hub.merge.fastpull.inject_into_fastpull(artifact)
 
 		for future in self.futures:
 			future.set_result(success)
@@ -185,43 +178,46 @@ async def _download(artifact):
 	needs to catch and handle this.
 
 	"""
-	assert id(asyncio.get_running_loop()) == id(hub.THREAD_CTX.loop)
 	logging.info(f"Fetching {artifact.url}...")
 
 	temp_path = artifact.temp_path
 	os.makedirs(os.path.dirname(temp_path), exist_ok=True)
 	final_path = artifact.final_path
 
-	fd = open(temp_path, "wb")
-	hashes = {}
+	try:
+		fd = open(temp_path, "wb")
+		hashes = {}
 
-	for h in HASHES:
-		hashes[h] = getattr(hashlib, h)()
-	filesize = 0
+		for h in HASHES:
+			hashes[h] = getattr(hashlib, h)()
+		filesize = 0
 
-	def on_chunk(chunk):
-		# See https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
-		nonlocal filesize
-		fd.write(chunk)
-		for hash in HASHES:
-			hashes[hash].update(chunk)
-		filesize += len(chunk)
-		sys.stdout.write(".")
+		def on_chunk(chunk):
+			# See https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
+			nonlocal filesize
+			fd.write(chunk)
+			for hash in HASHES:
+				hashes[hash].update(chunk)
+			filesize += len(chunk)
+			sys.stdout.write(".")
+			sys.stdout.flush()
+
+		await hub.pkgtools.http.http_fetch_stream(artifact.url, on_chunk)
+
+		sys.stdout.write("x")
 		sys.stdout.flush()
+		fd.close()
+		os.link(temp_path, final_path)
 
-	await hub.pkgtools.http.http_fetch_stream(artifact.url, on_chunk)
+		final_data = {"size": filesize, "hashes": {}, "path": final_path}
 
-	sys.stdout.write("x")
-	sys.stdout.flush()
-	fd.close()
-	os.link(temp_path, final_path)
-	os.unlink(temp_path)
-	final_data = {"size": filesize, "hashes": {}, "path": final_path}
+		for h in HASHES:
+			final_data["hashes"][h] = hashes[h].hexdigest()
 
-	for h in HASHES:
-		final_data["hashes"][h] = hashes[h].hexdigest()
-
-	# TODO: this is likely a good place for GPG verification. Implement.
+		# TODO: this is likely a good place for GPG verification. Implement.
+	finally:
+		if os.path.exists(temp_path):
+			os.unlink(temp_path)
 
 	return final_data
 

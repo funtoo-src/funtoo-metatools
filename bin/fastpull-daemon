@@ -12,29 +12,32 @@ enable_pretty_logging()
 
 
 class UptimeHandler(tornado.web.RequestHandler):
-
 	def get(self):
 		self.set_status(200)
 		return
+
 
 class RedirectHandler(tornado.web.RequestHandler):
 
 	# send people to google...
 	# redirect_url = "https://storage.googleapis.com/fastpull-us/%s/%s/%s"
-	
+
 	# or send people to us...
-	#redirect_url = "/%s/%s/%s"
+	# redirect_url = "/%s/%s/%s"
 	redirect_url = "https://1153732560.rsc.cdn77.org/"
-	def get(self,fn):
+
+	def get(self, fn):
 		fn = os.path.basename(fn)
 		success = False
 		if fn == "layout.conf":
 			self.set_header("Content-Type", "text/plain")
-			self.write("""[structure]
+			self.write(
+				"""[structure]
 0=flat
-""")
+"""
+			)
 			return
-		fp_ent = hub.FASTPULL.find_one({"filename" : fn})
+		fp_ent = hub.FASTPULL.find_one({"filename": fn})
 		if fp_ent:
 			sh = fp_ent["hashes"]["sha512"]
 			basepath = f"{sh[:2]}/{sh[2:4]}/{sh[4:6]}/{sh}"
@@ -43,10 +46,12 @@ class RedirectHandler(tornado.web.RequestHandler):
 		else:
 			self.set_status(404)
 
+
 settings = {
 	"xsrf_cookies": False,
-	"cache_json" : False,
+	"cache_json": False,
 }
+
 
 class Application(tornado.web.Application):
 
@@ -60,6 +65,7 @@ class Application(tornado.web.Application):
 
 	def __init__(self):
 		tornado.web.Application.__init__(self, self.handlers, **settings)
+
 
 if __name__ == "__main__":
 	hub = Hub()

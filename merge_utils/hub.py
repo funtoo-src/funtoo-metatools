@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-
+import asyncio
 import os
 import importlib.util
+import threading
 import types
 
 
 class PluginDirectory:
-	def __init__(self, hub, path):
+	def __init__(self, hub, path, init_kwargs=None):
 		self.path = path
 		self.hub = hub
 		self.init_done = False  # This means that we tried to run init.py if one existed.
 		self.loaded = False  # This means the plugin directory has been fully loaded and initialized.
 		self.plugins = {}
+		self.init_kwargs = init_kwargs
+		# I'm testing this -- it's probably best to make sure we do all init at the very beginning.
+		self.do_dir_init()
 
 	def load_plugin(self, plugin_name):
 		"""
@@ -30,7 +34,8 @@ class PluginDirectory:
 			return
 		init_path = os.path.join(self.path, "init.py")
 		if os.path.exists(init_path):
-			self.plugins["init"] = self.hub.load_plugin(init_path, "init")
+			# Load "init.py" plugin and also pass init_kwargs which will get passed to the __init__() method.
+			self.plugins["init"] = self.hub.load_plugin(init_path, "init", init_kwargs=self.init_kwargs)
 		self.init_done = True
 
 	def load(self):
@@ -57,15 +62,25 @@ class Hub:
 		self.root_dir = os.path.normpath(os.path.join(os.path.realpath(__file__), "../../"))
 		self.paths = {}
 		self.lazy = lazy
+		self._thread_ctx = threading.local()
+		self._thread_ctx.loop = asyncio.get_event_loop()
 
-	def add(self, path, name=None):
+	@property
+	def THREAD_CTX(self):
+		return self._thread_ctx
+
+	@property
+	def LOOP(self):
+		return self._thread_ctx.loop
+
+	def add(self, path, name=None, **init_kwargs):
 		if name is None:
 			name = os.path.basename(path)
-		self.paths[name] = PluginDirectory(self, os.path.join(self.root_dir, path))
+		self.paths[name] = PluginDirectory(self, os.path.join(self.root_dir, path), init_kwargs=init_kwargs)
 		if not self.lazy:
 			self.paths[name].load()
 
-	def load_plugin(self, path, name):
+	def load_plugin(self, path, name, init_kwargs=None):
 		print(f"Loading {path}")
 		spec = importlib.util.spec_from_file_location(name, path)
 		if spec is None:
@@ -76,16 +91,14 @@ class Hub:
 		mod.hub = self
 		init_func = getattr(mod, "__init__", None)
 		if init_func is not None and isinstance(init_func, types.FunctionType):
-			init_func()
+			if init_kwargs is None:
+				init_func()
+			else:
+				# pass what was sent to hub.add("foo", blah=...) as kwargs to __init__() in the init.py.
+				init_func(**init_kwargs)
 		return mod
 
 	def __getattr__(self, name):
 		if name not in self.paths:
 			raise AttributeError(f"{name} not found on hub.")
 		return self.paths[name]
-
-
-if __name__ == "__main__":
-	hub = Hub()
-	hub.add("modules/funtoo/pkgtools", name="pkgtools")
-	hb = hub.pkgtools.foobar.HubbaBubba()

@@ -123,9 +123,7 @@ if __name__ == "__main__":
 
 	# Initialize internal pop globals that are expected to be in place when the merge sub gets added:
 
-	hub.MERGE_CONFIG = config = Configuration(prod=prod)
-	hub.RELEASE = hub.OPT.release
-	hub.add("funtoo/merge")
+	hub.add("funtoo/merge", prod=prod, release=hub.OPT.release)
 	hub.add("funtoo/pkgtools")
 
 	if not prod:
@@ -136,7 +134,7 @@ if __name__ == "__main__":
 		hub.PUSH = False
 		hub.MIRROR = False
 		hub.META_REPO = meta_repo = hub.GIT_CLASS(
-			name="meta-repo", branch=hub.RELEASE, root=config.dest_trees + "/meta-repo"
+			name="meta-repo", branch=hub.RELEASE, root=hub.MERGE_CONFIG.dest_trees + "/meta-repo"
 		)
 		hub.NEST_KITS = True
 	else:
@@ -155,8 +153,8 @@ if __name__ == "__main__":
 		hub.META_REPO = meta_repo = hub.merge.tree.GitTree(
 			"meta-repo",
 			branch=hub.RELEASE,
-			url=config.meta_repo,
-			root=config.dest_trees + "/meta-repo",
+			url=hub.MERGE_CONFIG.meta_repo,
+			root=hub.MERGE_CONFIG.dest_trees + "/meta-repo",
 			origin_check=True,
 			**kwargs,
 		)
@@ -164,9 +162,9 @@ if __name__ == "__main__":
 	hub.START_TIME = datetime.utcnow()
 	hub.FIXUP_REPO = hub.merge.tree.GitTree(
 		"kit-fixups",
-		config.branch("kit-fixups"),
-		url=config.kit_fixups,
-		root=config.source_trees + "/kit-fixups",
+		hub.MERGE_CONFIG.branch("kit-fixups"),
+		url=hub.MERGE_CONFIG.kit_fixups,
+		root=hub.MERGE_CONFIG.source_trees + "/kit-fixups",
 	)
 
 	hub.CPM_LOGGER = None

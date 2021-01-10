@@ -329,35 +329,25 @@ def queue_all_yaml_autogens():
 				logging.debug(f"Added to queue of pending autogens: {PENDING_QUE[-1]}")
 
 
-def load_autogen_config():
-	path = os.path.expanduser("~/.autogen")
-	if os.path.exists(path):
-		with open(path, "r") as f:
-			hub.AUTOGEN_CONFIG = yaml.safe_load(f)
-	else:
-		hub.AUTOGEN_CONFIG = {}
-
-
 async def execute_all_queued_generators():
 	futures = []
 	loop = asyncio.get_running_loop()
-	with ThreadPoolExecutor() as executor:
+	with ThreadPoolExecutor(max_workers=8) as executor:
 		while len(PENDING_QUE):
 			task_args = PENDING_QUE.pop(0)
 			async_func = await execute_generator(**task_args)
 			future = loop.run_in_executor(executor, hub.pkgtools.thread.run_async_adapter, async_func)
 			futures.append(future)
 
-	async for result in gather_pending_tasks(futures):
-		pass
+		async for result in gather_pending_tasks(futures):
+			pass
 
 
-async def start(start_path=None, out_path=None, fetcher=None, release=None, kit=None, branch=None):
+async def start(start_path=None, out_path=None, fetcher=None):
 
 	"""
 	This method will start the auto-generation of packages in an ebuild repository.
 	"""
-	load_autogen_config()
 	hub.FETCHER = fetcher
 	hub.pkgtools.repository.set_context(start_path=start_path, out_path=out_path)
 	hub.add("funtoo/generators")

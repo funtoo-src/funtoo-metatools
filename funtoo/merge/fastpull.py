@@ -62,6 +62,10 @@ def complete_artifact(artifact):
 	return artifact
 
 
+def get_disk_path(sh):
+	return os.path.join(hub.MERGE_CONFIG.fastpull_path, sh[:2], sh[2:4], sh[4:6], sh)
+
+
 def create_fastpull_db_entry(artifact, rand_id=None):
 	db_entry = {}
 	db_entry["hashes"] = artifact.final_data
@@ -75,9 +79,9 @@ def create_fastpull_db_entry(artifact, rand_id=None):
 
 async def inject_into_fastpull(artifact):
 	"""
-	We assume that we have a downloaded artifact. Then we attempt to add to our fastpull on-disk repository.
+	For a given artifact, make sure it's fetched locally and then add it to the fastpull archive.
 	"""
-	await artifact.ensure_completed()
+	await artifact.ensure_fetched()
 	fastpull_path = artifact.fastpull_path
 	if os.path.islink(fastpull_path):
 		# This will fix-up the situation where we used symlinks in fastpull rather than copying the file. It will
@@ -94,4 +98,3 @@ async def inject_into_fastpull(artifact):
 		except Exception as e:
 			# Multiple doits running in parallel, trying to link the same file -- could cause exceptions:
 			logging.error(f"Exception encountered when trying to link into fastpull (may be harmless) -- {repr(e)}")
-

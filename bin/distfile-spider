@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+
+# So, this is the new distfile spider. What I want to do is to have this thing be able to load
+# metadata JSON and then check with mongodb to ensure files are in fastpull, and if not, run through
+# the JSON and try to grab missing files, and generate a report. Then exit. So it isn't a long-
+# running daemon -- it will run for as long as needed to do its thing.
+
+import asyncio
+import os
+from argparse import ArgumentParser
+from concurrent.futures.thread import ThreadPoolExecutor
+
+from merge_utils.hub import Hub
+
+
+def expand_uris(src_uri_list):
+	real_uri = []
+	for src_uri in src_uri_list:
+		if src_uri.startswith("mirror://"):
+			real_uri.append(hub.merge.metadata.expand_thirdpartymirror(tp_mirrors, src_uri))
+		else:
+			slash_split = src_uri.split("/")
+			if len(slash_split) == 0:
+				continue
+			elif slash_split[0] not in ["http:", "https:", "ftp:"]:
+				continue
+			real_uri.append(src_uri)
+	return real_uri
+
+
+async def do_distfile_fetch(file):
+	"""
+	This function takes a "file" which is the JSON structure from a kit-cache JSON that describes a file associated
+	with a package. It will then see if the file is in the fastpull DB. If not, it will ensure the file is fetched,
+	which will then cause it to be inserted into the fastpull DB.
+	"""
+	sha512 = file["hashes"]["sha512"]
+	fp_path = hub.merge.fastpull.get_disk_path(sha512)
+	if os.path.exists(fp_path):
+		# TODO: We should check our DB entry to make sure fastpull db has it... otherwise populate using this data.
+		return
+	src_uris = expand_uris(file["src_uri"])
+	if not len(src_uris):
+		print("CAN'T GRAB, NO URIS", file["name"])
+		return
+	# TODO: Add ability to "expect" a filesize and hash:
+	a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=file["name"])
+	# This call will only ensure it is fetched into our "fetch path". It doesn't make sure it is actually added to
+	# fastpull.
+	await hub.merge.fastpull.inject_into_fastpull(a)
+
+
+async def main_thread():
+	mk_json = hub.merge.metadata.load_json(args.infile)
+	futures = []
+	for atom, datums in mk_json["atoms"].items():
+		if "files" in datums:
+			for file in datums["files"]:
+				if "hashes" in file and "sha512" in file["hashes"]:
+					future = do_distfile_fetch(file)
+					futures.append(future)
+	async for result in hub.pkgtools.autogen.gather_pending_tasks(futures):
+		# TODO: we should really verify hashes? I mean, we may want to store the file anyway. But dunno.
+		pass
+
+
+if __name__ == "__main__":
+
+	hub = Hub()
+	hub.add("funtoo/merge")
+	hub.add("funtoo/pkgtools")
+
+	ap = ArgumentParser()
+	ap.add_argument("infile")
+	args = ap.parse_args()
+
+	# We need kit-fixups available so we can grab the thirdpartymirrors file from it.
+
+	hub.FIXUP_REPO = hub.merge.tree.GitTree(
+		"kit-fixups",
+		hub.MERGE_CONFIG.branch("kit-fixups"),
+		url=hub.MERGE_CONFIG.kit_fixups,
+		root=hub.MERGE_CONFIG.source_trees + "/kit-fixups",
+	)
+	hub.FIXUP_REPO.initialize()
+
+	tp_mirrors = hub.merge.metadata.get_thirdpartymirrors(
+		os.path.expanduser("~/repo_tmp/dest-trees/meta-repo/kits/core-kit")
+	)
+
+	hub.LOOP.run_until_complete(main_thread())
