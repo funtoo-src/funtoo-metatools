@@ -44,12 +44,12 @@ class PluginDirectory:
 					self.plugins[plugin_name] = self.hub.load_plugin(os.path.join(self.path, item), plugin_name)
 		self.loaded = True
 
-	def __getattr__(self, item):
+	def __getattr__(self, plugin_name):
 		if not self.loaded:
 			self.load()
-		if item not in self.plugins:
-			raise AttributeError(f"{item} not found.")
-		return self.plugins[item]
+		if plugin_name not in self.plugins:
+			raise AttributeError(f"Plugin {plugin_name} not found.")
+		return self.plugins[plugin_name]
 
 
 class Hub:
