@@ -35,7 +35,7 @@ async def file_indexer():
 			break
 		# TODO: this needs testing -- create an Artifact based on a final_path hasn't really been tested:
 		artifact = hub.pkgtools.ebuild.Artifact(final_path=next_file)
-		await hub.pkgtools.fastpull.inject_into_fastpull_db(artifact)
+		await hub.merge.fastpull.inject_into_fastpull_db(artifact)
 		sys.stdout.write(".")
 		sys.stdout.flush()
 
