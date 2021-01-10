@@ -158,7 +158,8 @@ class Download:
 					# We only need to insert once into fastpull since it is the same underlying file.
 
 					if hub.MERGE_CONFIG.fastpull_enabled:
-						hub.merge.fastpull.inject_into_fastpull_db(artifact)
+						# TODO: expand this to create a DB entry in fastpull db to
+						hub.merge.fastpull.inject_into_fastpull(artifact)
 
 		for future in self.futures:
 			future.set_result(success)

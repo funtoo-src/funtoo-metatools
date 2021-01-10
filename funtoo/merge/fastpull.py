@@ -72,9 +72,9 @@ def create_fastpull_db_entry(artifact, rand_id=None):
 	hub.FASTPULL.insert_one(db_entry)
 
 
-async def inject_into_fastpull_db(artifact):
+async def inject_into_fastpull(artifact):
 	"""
-	We assume that we have a downloaded artifact. Then we attempt to add to our fastpull database.
+	We assume that we have a downloaded artifact. Then we attempt to add to our fastpull on-disk repository.
 	"""
 	await artifact.ensure_completed()
 	fastpull_path = artifact.fastpull_path
@@ -93,4 +93,4 @@ async def inject_into_fastpull_db(artifact):
 		except Exception as e:
 			# Multiple doits running in parallel, trying to link the same file -- could cause exceptions:
 			logging.error(f"Exception encountered when trying to link into fastpull (may be harmless) -- {repr(e)}")
-	create_fastpull_db_entry(artifact)
+
