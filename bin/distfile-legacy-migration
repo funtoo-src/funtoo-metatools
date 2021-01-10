@@ -2,29 +2,68 @@
 
 # The purpose of this script is to migrate our legacy fastpull database from MySQL to MongoDB.
 # It will read all contents of the older MySQL database, and create records for Mongo.
+#
+# MIGRATION PLAN
+# ==============
+#
+# Migration plan: run distfile-bulk-indexer one last time. At this point, all files in legacy
+# fastpull should now be in new fastpull. Problem may be that we don't support symlinking any-
+# more. So I may need to upgrade to "copy mode".
+#
+# Now, migrate the database. We can assume that any legacy DB entry will have a corresponding
+# file in the new fastpull database.
+#
+# Now, potentially, we have some files in our fastpull file archive that are not in the db. So
+# we need a deepdive command to be able to scan metadata and make sure that fastpull db entries
+# exist for the files (complete ones with source URIs, etc.) and if not create them.
+#
+# At this point, we can deprecate the legacy fastpull and replace it with a new MongoDB-based
+# fastpull, which uses the new db.
+#
+# We also need a little script to migrate stuff from symlinks to real files at the new location.
+# DONE -- inject_into_fastpull_db will auto-fix symlinks -- as long as we call it for each file.
+# It only fixes things when we are trying to inject a file, then it will check the fastpull entry
+# for this file.
+#
+# And we need something that will run and populate the list of queued distfiles. And we need
+# our new distfile spider to send info to infra-feed. That would be useful.
 
-import argparse
+
 import asyncio
-import sys
-from collections import defaultdict, OrderedDict
-from concurrent.futures import as_completed
-from concurrent.futures.thread import ThreadPoolExecutor
-from datetime import datetime
 
-from dict_tools.data import NamespaceDict
-
-from merge_utils.config import Configuration
-from merge_utils.hub import Hub
 from merge_utils.db_core import FastPullDatabase
+from merge_utils.hub import Hub
+
 
 async def main_thread():
 	db = FastPullDatabase()
-
-
-	for df in db.query(db.Distfile):
-
-	pass
-
+	cant_migrate = []
+	to_migrate = []
+	with db.get_session() as session:
+		for df in session.query(db.Distfile):
+			if df.digest_type != "sha512":
+				cant_migrate.append(df)
+				continue
+			mongo_data = {
+				"rand_id" : df.rand_id,
+				"filename" : df.filename,
+				"src_uri" : df.src_uri,
+				"fetched_on": df.fetched_on,
+				"hashes" : { "size" : df.size, "sha512": df.digest }
+			}
+			pkg_data = []
+			if df.kit is not None or df.catpkg is not None:
+				pkg_data.append({"kit": df.kit, "catpkg": df.catpkg})
+			mongo_data["refs"] = pkg_data
+			to_migrate.append(mongo_data)
+	hub.FASTPULL.insert_many(to_migrate)
+	print(hub.FASTPULL.count_documents({}), "documents inserted.")
+	# TODO: migrate cant_migrate
 
 if __name__ == "__main__":
+	hub = Hub()
+	hub.add("funtoo/pkgtools")
+	hub.add("funtoo/merge")
+	# Ensure this plugin is initialized:
+	hub.merge.load_plugin("fastpull")
 	asyncio.get_event_loop().run_until_complete(main_thread())

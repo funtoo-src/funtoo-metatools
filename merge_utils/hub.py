@@ -9,16 +9,39 @@ class PluginDirectory:
 	def __init__(self, hub, path):
 		self.path = path
 		self.hub = hub
-		self.loaded = False
+		self.init_done = False  # This means that we tried to run init.py if one existed.
+		self.loaded = False  # This means the plugin directory has been fully loaded and initialized.
 		self.plugins = {}
 
+	def load_plugin(self, plugin_name):
+		"""
+		This allows a plugin to be explicitly loaded, which is handy if you are using lazy loading (load on first
+		reference to something in a plugin) but your first interaction with it
+		"""
+		self.do_dir_init()
+		if self.loaded:
+			if plugin_name not in self.plugins:
+				raise IndexError(f"Unable to find plugin {plugin_name}.")
+		else:
+			self.plugins[plugin_name] = self.hub.load_plugin(os.path.join(self.path, plugin_name + ".py"), plugin_name)
+
+	def do_dir_init(self):
+		if self.init_done:
+			return
+		init_path = os.path.join(self.path, "init.py")
+		if os.path.exists(init_path):
+			self.plugins["init"] = self.hub.load_plugin(init_path, "init")
+		self.init_done = True
+
 	def load(self):
+		self.do_dir_init()
 		for item in os.listdir(self.path):
-			if item == "__init__.py":
+			if item in ["__init__.py", "init.py"]:
 				continue
 			if item.endswith(".py"):
 				plugin_name = item[:-3]
-				self.plugins[plugin_name] = self.hub.load_plugin(os.path.join(self.path, item), plugin_name)
+				if plugin_name not in self.plugins:
+					self.plugins[plugin_name] = self.hub.load_plugin(os.path.join(self.path, item), plugin_name)
 		self.loaded = True
 
 	def __getattr__(self, item):

@@ -3,45 +3,8 @@
 import logging
 import os
 import random
-
 import pymongo
 from pymongo import MongoClient
-
-"""
-This sub implements an even higher-level download API than `download.py`. Think of fastpull as a combination on-disk
-database (where the actual distfiles are stored) along with an index which is stored in MongoDB. When fastpull indexes
-a file, it is indexed by its cryptographic hashes and can only be retrieved by using these hashes (not by filename.)
-
-Right now, when the download sub downloads a file by name, a hook is called to store the file into fastpull. But
-autogen doesn't use fastpull directly for fetching, because it doesn't have any expected hashes. In this way, we
-put data IN fastpull, but only the fastpull web service actually serves data OUT of fastpull.
-
-Scratch space for ideas:
-
-Have a unified database for queued distfiles as well as fetched distfiles. What to record:
-
-fastpull_request
-================
-final_name
-urls (list)
-expected_hashes ---
-requested_by ( kit, branch, atom, date )
-
-If downloaded, goes over to fastpull:
-
-
-fastpull
-========
-
-disk_index
-hashes
-
-final_names (indexed list, since it could have many possible final names)
-last_attempted_on
-fetch_log (updated for every fetch, even failures.)
-requested_by (kit, branch, atom, date?) would be cool.
-
-"""
 
 hub = None
 
@@ -51,6 +14,22 @@ def __init__():
 	fp = hub.FASTPULL = mc.metatools.fastpull
 	fp.create_index([("hashes.sha512", pymongo.ASCENDING), ("filename", pymongo.ASCENDING)], unique=True)
 	fp.create_index([("rand_id", pymongo.ASCENDING)], unique=True)
+	#
+	# Structure of Fastpull database:
+	#
+	# filename: actual destination final_name, string.
+	# hashes: dictionary containing:
+	#   size: file size
+	#   sha512: sha512 hash
+	#   ... other hashes
+	# rand_id: random_id from legacy fastpull. We are going to keep using this for all our new fastpulls too.
+	# src_uri: URI file was downloaded from.
+	# fetched_on: timestamp file was fetched on.
+	# refs: list of references in packages, each item in list a dictionary in the following format:
+	#  kit: kit
+	#  catpkg: catpkg
+	#  atom: atom
+	# Some items may be omitted based on whether they are in our legacy DB or not.
 
 
 def complete_artifact(artifact):
@@ -93,13 +72,21 @@ def create_fastpull_db_entry(artifact, rand_id=None):
 	hub.FASTPULL.insert_one(db_entry)
 
 
-def inject_into_fastpull(artifact):
+async def inject_into_fastpull_db(artifact):
 	"""
 	We assume that we have a downloaded artifact. Then we attempt to add to our fastpull database.
 	"""
-
-	fastpull_path = get_fastpull_path(artifact)
-	if not os.path.exists(fastpull_path):
+	await artifact.ensure_completed()
+	fastpull_path = artifact.fastpull_path
+	if os.path.islink(fastpull_path):
+		# This will fix-up the situation where we used symlinks in fastpull rather than copying the file. It will
+		# replace the symlink with the actual file. I did this for quickly migrating the legacy fastpull db. Once
+		# I have migrated it over, this condition can probably be safely removed.
+		actual_file = os.path.realpath(fastpull_path)
+		if os.path.exists(actual_file):
+			os.unlink(fastpull_path)
+			os.link(actual_file, fastpull_path)
+	elif not os.path.exists(fastpull_path):
 		try:
 			os.makedirs(os.path.dirname(fastpull_path), exist_ok=True)
 			os.link(artifact.final_path, fastpull_path)
