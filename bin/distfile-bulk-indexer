@@ -2,7 +2,7 @@
 
 # The purpose of this executable is to point to a directory path with existing distfiles, and grab them all and
 # add them to fastpull.
-
+import asyncio
 import logging
 import multiprocessing
 import os
@@ -28,27 +28,28 @@ def file_walker(path):
 		main_queue.put(terminus)
 
 
-def file_indexer():
+async def file_indexer():
 	while True:
 		next_file = main_queue.get()
 		if next_file == terminus:
 			break
 		# TODO: this needs testing -- create an Artifact based on a final_path hasn't really been tested:
 		artifact = hub.pkgtools.ebuild.Artifact(final_path=next_file)
-		hub.pkgtools.fastpull.inject_into_fastpull(artifact)
+		await hub.pkgtools.fastpull.inject_into_fastpull(artifact)
 
 
-def main_thread(path):
+async def main_thread(path):
 	futures = []
 	with ThreadPoolExecutor() as executor:
 		futures.append(executor.submit(file_walker, path))
 		for count in range(0, num_indexers):
-			futures.append(executor.submit(file_indexer))
+			future = asyncio.get_running_loop().run_in_executor(executor, hub.pkgtools.thread.run_async_adapter, file_indexer)
+			futures.append(future)
 
-		for future in as_completed(futures):
-			sys.stdout.write("x")
-			sys.stdout.flush()
-		print("Indexing complete.")
+	for future in as_completed(futures):
+		sys.stdout.write("x")
+		sys.stdout.flush()
+	print("Indexing complete.")
 
 
 if __name__ == "__main__":
