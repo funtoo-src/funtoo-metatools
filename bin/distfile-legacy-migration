@@ -37,19 +37,15 @@ from merge_utils.hub import Hub
 
 async def main_thread():
 	db = FastPullDatabase()
-	cant_migrate = []
 	to_migrate = []
 	with db.get_session() as session:
 		for df in session.query(db.Distfile):
-			if df.digest_type != "sha512":
-				cant_migrate.append(df)
-				continue
 			mongo_data = {
 				"rand_id" : df.rand_id,
 				"filename" : df.filename,
 				"src_uri" : df.src_uri,
 				"fetched_on": df.last_fetched_on,
-				"hashes" : { "size" : df.size, "sha512": df.digest }
+				"hashes" : { "size" : df.size, "sha512": df.id }
 			}
 			pkg_data = []
 			if df.kit is not None or df.catpkg is not None:
@@ -58,7 +54,6 @@ async def main_thread():
 			to_migrate.append(mongo_data)
 	hub.FASTPULL.insert_many(to_migrate)
 	print(hub.FASTPULL.count_documents({}), "documents inserted.")
-	# TODO: migrate cant_migrate
 
 if __name__ == "__main__":
 	hub = Hub()
