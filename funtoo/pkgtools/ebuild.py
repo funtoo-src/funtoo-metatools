@@ -4,7 +4,6 @@ import os
 import asyncio
 import sys
 from asyncio import Task
-
 import jinja2
 import logging
 from collections import defaultdict

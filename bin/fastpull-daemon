@@ -1,0 +1,75 @@
+#!/usr/bin/python3
+
+import os
+from tornado.httpserver import HTTPServer
+import tornado.web
+import tornado.gen
+import tornado.ioloop
+from tornado.log import enable_pretty_logging
+from merge_utils.hub import Hub
+
+enable_pretty_logging()
+
+
+class UptimeHandler(tornado.web.RequestHandler):
+
+	def get(self):
+		self.set_status(200)
+		return
+
+class RedirectHandler(tornado.web.RequestHandler):
+
+	# send people to google...
+	# redirect_url = "https://storage.googleapis.com/fastpull-us/%s/%s/%s"
+	
+	# or send people to us...
+	#redirect_url = "/%s/%s/%s"
+	redirect_url = "https://1153732560.rsc.cdn77.org/"
+	def get(self,fn):
+		fn = os.path.basename(fn)
+		success = False
+		if fn == "layout.conf":
+			self.set_header("Content-Type", "text/plain")
+			self.write("""[structure]
+0=flat
+""")
+			return
+		fp_ent = hub.FASTPULL.find_one({"filename" : fn})
+		if fp_ent:
+			sh = fp_ent["hashes"]["sha512"]
+			basepath = f"{sh[:2]}/{sh[2:4]}/{sh[4:6]}/{sh}"
+			url = self.redirect_url + basepath
+			self.redirect(url, permanent=False)
+		else:
+			self.set_status(404)
+
+settings = {
+	"xsrf_cookies": False,
+	"cache_json" : False,
+}
+
+class Application(tornado.web.Application):
+
+	name = "fastpull alpha service"
+	handlers = [
+		(r"/distfiles/distfiles/(.*)", RedirectHandler),
+		(r"/distfiles/(.*)", RedirectHandler),
+		(r"/up", UptimeHandler),
+		(r"/(.*)", RedirectHandler),
+	]
+
+	def __init__(self):
+		tornado.web.Application.__init__(self, self.handlers, **settings)
+
+if __name__ == "__main__":
+	hub = Hub()
+	hub.add("funtoo/merge")
+	application = Application()
+	http_server = HTTPServer(application, xheaders=True)
+	http_server.bind(8080, "127.0.0.1")
+	http_server.start()
+
+	# start ioloop
+	tornado.ioloop.IOLoop().current().start()
+
+# vim: ts=4 sw=4 noet
