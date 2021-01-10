@@ -13,7 +13,8 @@ def __init__():
 	mc = MongoClient()
 	fp = hub.FASTPULL = mc.metatools.fastpull
 	fp.create_index([("hashes.sha512", pymongo.ASCENDING), ("filename", pymongo.ASCENDING)], unique=True)
-	fp.create_index([("rand_id", pymongo.ASCENDING)], unique=True)
+	# rand_ids don't need to be unique -- they can be shared if they are pointing to the same underlying file.
+	fp.create_index([("rand_id", pymongo.ASCENDING)])
 	#
 	# Structure of Fastpull database:
 	#
