@@ -43,7 +43,7 @@ async def main_thread():
 			mongo_data = {
 				"rand_id" : df.rand_id,
 				"filename" : df.filename,
-				"src_uri" : df.src_uri,
+				"src_uri" : df.src_uri.strip(),
 				"fetched_on": df.last_fetched_on,
 				"hashes" : { "size" : df.size, "sha512": df.id }
 			}
@@ -52,6 +52,7 @@ async def main_thread():
 				pkg_data.append({"kit": df.kit, "catpkg": df.catpkg})
 			mongo_data["refs"] = pkg_data
 			to_migrate.append(mongo_data)
+	hub.FASTPULL.delete_many({})
 	hub.FASTPULL.insert_many(to_migrate)
 	print(hub.FASTPULL.count_documents({}), "documents inserted.")
 
