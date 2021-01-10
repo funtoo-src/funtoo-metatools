@@ -36,6 +36,8 @@ async def file_indexer():
 		# TODO: this needs testing -- create an Artifact based on a final_path hasn't really been tested:
 		artifact = hub.pkgtools.ebuild.Artifact(final_path=next_file)
 		await hub.pkgtools.fastpull.inject_into_fastpull(artifact)
+		sys.stdout.write(".")
+		sys.stdout.flush()
 
 
 async def main_thread(path):
@@ -57,4 +59,4 @@ if __name__ == "__main__":
 	hub.add("funtoo/merge")
 	hub.add("funtoo/pkgtools")
 	hub.MERGE_CONFIG = config = Configuration()
-	main_thread(sys.argv[1])
+	asyncio.run(main_thread(sys.argv[1]))
