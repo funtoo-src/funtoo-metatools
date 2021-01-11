@@ -320,9 +320,7 @@ class BreezyBuild:
 			fetch_tasks_dict[artifact] = asyncio.Task(lil_coroutine(artifact))
 
 		# Wait for any artifacts that are still fetching:
-		results = []
-		async for result in hub.pkgtools.autogen.gather_pending_tasks(fetch_tasks_dict.values()):
-			results.append(result)
+		results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(fetch_tasks_dict.values())
 		completion_list = aggregate(results)
 		for artifact, status in completion_list:
 			if status is False:
