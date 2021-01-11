@@ -87,7 +87,9 @@ async def inject_into_fastpull(artifact):
 	"""
 	For a given artifact, make sure it's fetched locally and then add it to the fastpull archive.
 	"""
-	await artifact.ensure_fetched()
+	success = await artifact.ensure_fetched()
+	if not success:
+		print(f"Unable to ensure artifact is fetched! {artifact.final_name}")
 	fastpull_path = artifact.fastpull_path
 	if os.path.islink(fastpull_path):
 		# This will fix-up the situation where we used symlinks in fastpull rather than copying the file. It will
