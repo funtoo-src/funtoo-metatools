@@ -63,15 +63,36 @@ class Hub:
 		self.paths = {}
 		self.lazy = lazy
 		self._thread_ctx = threading.local()
-		self._thread_ctx.loop = asyncio.get_event_loop()
+
+		# In Python, threads and asyncio event loops are connected. Python asyncio has the concept of the
+		# "current asyncio loop", and this current event loop is set per OS thread. So to properly handle
+		# this, it is best to use thread-local storage here -- so we are properly dealing with the
+		# sophistication of asyncio and how event loops are mapped.
+
+		try:
+			self._thread_ctx.loop = asyncio.get_running_loop()
+		except RuntimeError:
+			self._thread_ctx.loop = asyncio.new_event_loop()
+			asyncio.set_event_loop(self._thread_ctx.loop)
+
 
 	@property
 	def THREAD_CTX(self):
 		return self._thread_ctx
 
+
 	@property
 	def LOOP(self):
-		return self._thread_ctx.loop
+		"""
+		This is the best way to get the current event loop for the current thread using subpop.
+
+		Internally, we use thread-local storage so that everything in this OS thread gets the same result,
+		but different OS threads will have their own event loop.
+		"""
+		loop = getattr(self._thread_ctx, "loop", None)
+		if loop is None:
+			loop = self._thread_ctx.loop = asyncio.new_event_loop()
+		return loop
 
 
 	def add(self, path, name=None, **init_kwargs):
@@ -80,6 +101,7 @@ class Hub:
 		self.paths[name] = PluginDirectory(self, os.path.join(self.root_dir, path), init_kwargs=init_kwargs)
 		if not self.lazy:
 			self.paths[name].load()
+
 
 	def load_plugin(self, path, name, init_kwargs=None):
 		print(f"Loading {path}")
