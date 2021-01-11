@@ -64,10 +64,10 @@ async def do_distfile_fetch(distinct_key, distinct_file_list):
 			return
 		try:
 			a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=name, expect={"sha512" : sha512, "size": size})
+			await hub.merge.fastpull.inject_into_fastpull(a)
 		except hub.pkgtools.ebuild.DigestFailure as af:
 			logging.error(af)
 			return
-		await hub.merge.fastpull.inject_into_fastpull(a)
 	existing = hub.FASTPULL.find_one({"filename" : name, "hashes.sha512" : sha512})
 	if existing:
 		pass
