@@ -4,7 +4,7 @@
 # metadata JSON and then check with mongodb to ensure files are in fastpull, and if not, run through
 # the JSON and try to grab missing files, and generate a report. Then exit. So it isn't a long-
 # running daemon -- it will run for as long as needed to do its thing.
-
+import asyncio
 import logging
 import os
 import sys
@@ -51,14 +51,12 @@ async def do_distfile_fetch(file, datums):
 		print(a.final_path)
 		await hub.merge.fastpull.inject_into_fastpull(a)
 	else:
-		print(file["name"], "EXISTS IN FASTPULL")
 		# we still may have a missing database entry. And we should fix this. In this conditional block, the file
 		# exists in fastpull, but we do not have a DB entry for it. We now know that we should create one. So
 		# let's do it.
-	print("NOW CHECK DB ENTRY.")
 	existing = hub.FASTPULL.find_one({"filename" : file["name"], "sha512" : file["hashes"]["sha512"]})
 	if existing:
-		print(file["name"], "FOUND IN DATABASE")
+		pass
 	else:
 		db_entry = {}
 		db_entry["fetched_on"] = datetime.utcnow()
@@ -83,7 +81,7 @@ async def main_thread():
 		if "files" in datums:
 			for file in datums["files"]:
 				if "hashes" in file and "sha512" in file["hashes"]:
-					future = do_distfile_fetch(file, datums)
+					future = asyncio.Task(do_distfile_fetch(file, datums))
 					futures.append(future)
 	results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(futures)
 	if len(exceptions):
