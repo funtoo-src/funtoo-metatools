@@ -4,12 +4,13 @@
 # metadata JSON and then check with mongodb to ensure files are in fastpull, and if not, run through
 # the JSON and try to grab missing files, and generate a report. Then exit. So it isn't a long-
 # running daemon -- it will run for as long as needed to do its thing.
-import asyncio
 import logging
 import os
 import sys
 from argparse import ArgumentParser
+from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
+from multiprocessing import cpu_count
 
 from merge_utils.hub import Hub
 
@@ -35,6 +36,8 @@ async def do_distfile_fetch(file, datums):
 	with a package. It will then see if the file is in the fastpull DB. If not, it will ensure the file is fetched,
 	which will then cause it to be inserted into the fastpull DB.
 	"""
+	sys.stdout.write('.')
+	sys.stdout.flush()
 	sha512 = file["hashes"]["sha512"]
 	size = int(file["size"])
 	fp_path = hub.merge.fastpull.get_disk_path(sha512)
@@ -48,7 +51,6 @@ async def do_distfile_fetch(file, datums):
 		except hub.pkgtools.ebuild.DigestFailure as af:
 			logging.error(af)
 			return
-		print(a.final_path)
 		await hub.merge.fastpull.inject_into_fastpull(a)
 	existing = hub.FASTPULL.find_one({"filename" : file["name"], "sha512" : file["hashes"]["sha512"]})
 	if existing:
@@ -65,6 +67,8 @@ async def do_distfile_fetch(file, datums):
 			"catpkg": datums["catpkg"]
 		}]
 		hub.FASTPULL.insert_one(db_entry)
+		sys.stdout.write("^")
+		sys.stdout.flush()
 
 
 	# TODO: I think I had some locations where I assumed size of file was bundled with hashes, but that is not how it
@@ -73,18 +77,19 @@ async def do_distfile_fetch(file, datums):
 async def main_thread():
 	mk_json = hub.merge.metadata.load_json(args.infile)
 	futures = []
-	for atom, datums in mk_json["atoms"].items():
-		if "files" in datums:
-			for file in datums["files"]:
-				if "hashes" in file and "sha512" in file["hashes"]:
-					future = asyncio.Task(do_distfile_fetch(file, datums))
-					futures.append(future)
-	results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(futures)
-	if len(exceptions):
-		print("Error: the following exceptions were encountered:")
-		for x in exceptions:
-			print(x)
-		sys.exit(1)
+	with ThreadPoolExecutor(max_workers=cpu_count()) as threadpool:
+		for atom, datums in mk_json["atoms"].items():
+			if "files" in datums:
+				for file in datums["files"]:
+					if "hashes" in file and "sha512" in file["hashes"]:
+						future = hub.LOOP.run_in_executor(threadpool, hub.pkgtools.thread.run_async_adapter, do_distfile_fetch, file, datums)
+						futures.append(future)
+		results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(futures)
+		if len(exceptions):
+			print("Error: the following exceptions were encountered:")
+			for x in exceptions:
+				print(x)
+			sys.exit(1)
 
 
 
