@@ -68,15 +68,17 @@ async def do_distfile_fetch(distinct_key, distinct_file_list):
 			logging.error(af)
 			return
 		await hub.merge.fastpull.inject_into_fastpull(a)
-	existing = hub.FASTPULL.find_one({"filename" : name, "sha512" : sha512})
+	existing = hub.FASTPULL.find_one({"filename" : name, "hashes.sha512" : sha512})
 	if existing:
 		pass
 	else:
+		# store size inside hashes
+		hashes = ffile["hashes"].copy()
+		hashes["size"] = size
 		db_entry = {}
 		db_entry["fetched_on"] = datetime.utcnow()
 		db_entry["filename"] = name
 		db_entry["hashes"] = ffile["hashes"]
-		db_entry["size"] = size
 		db_entry["src_uri"] = src_uris
 		db_entry["refs"] = refs
 		hub.FASTPULL.insert_one(db_entry)
@@ -98,7 +100,7 @@ async def main_thread():
 		for distinct_key, distinct_file_list in distinct_files.items():
 			future = hub.LOOP.run_in_executor(threadpool, hub.pkgtools.thread.run_async_adapter, do_distfile_fetch, distinct_key, distinct_file_list)
 			futures.append(future)
-		results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(futures)
+		results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(futures, throw=True)
 		return exceptions
 
 if __name__ == "__main__":
