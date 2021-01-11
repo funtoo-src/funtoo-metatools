@@ -6,6 +6,7 @@
 # running daemon -- it will run for as long as needed to do its thing.
 import logging
 import os
+import sys
 from argparse import ArgumentParser
 from datetime import datetime
 
@@ -36,19 +37,14 @@ async def do_distfile_fetch(file, datums):
 	sha512 = file["hashes"]["sha512"]
 	size = int(file["size"])
 	fp_path = hub.merge.fastpull.get_disk_path(sha512)
-	print("DOING FETCH", file["name"])
 	if not os.path.exists(fp_path):
-		print(file["name"], "DOES NOT EXIST IN FASTPULL")
+		# TODO: the file could still be locally fetched. So we may still be able to inject? Likely just a weird corner case:
 		src_uris = expand_uris(file["src_uri"])
 		if not len(src_uris):
-			print("CAN'T GRAB, NO URIS", file["name"])
 			return
-		print("GOT HERE")
-		# TODO: Add ability to "expect" a filesize and hash:
 		try:
 			a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=file["name"], expect={"sha512" : sha512, "size": size})
 		except hub.pkgtools.ebuild.DigestFailure as af:
-			print("BIGBADERROR")
 			logging.error(af)
 			return
 		print(a.final_path)
@@ -63,7 +59,6 @@ async def do_distfile_fetch(file, datums):
 	if existing:
 		print(file["name"], "FOUND IN DATABASE")
 	else:
-		print("ATTEMPTING TO CREATE", file["name"], "IN DB")
 		db_entry = {}
 		db_entry["fetched_on"] = datetime.utcnow()
 		db_entry["filename"] = file["name"]
@@ -86,15 +81,16 @@ async def main_thread():
 	for atom, datums in mk_json["atoms"].items():
 		if "files" in datums:
 			for file in datums["files"]:
-				if file["name"] != "grub-2.04.tar.xz":
-					continue
 				if "hashes" in file and "sha512" in file["hashes"]:
 					future = do_distfile_fetch(file, datums)
 					futures.append(future)
-	async for result in hub.pkgtools.autogen.gather_pending_tasks(futures):
-		# TODO: we should really verify hashes? I mean, we may want to store the file anyway. But dunno.
-		pass
-	print("ERRORS", hub.ERRORS)
+	results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(futures)
+	if len(exceptions):
+		print("Error: the following exceptions were encountered:")
+		for x in exceptions:
+			print(x)
+		sys.exit(1)
+
 
 
 if __name__ == "__main__":
