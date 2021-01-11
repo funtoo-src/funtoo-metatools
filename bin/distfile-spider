@@ -86,8 +86,6 @@ async def main_thread():
 	for atom, datums in mk_json["atoms"].items():
 		if "files" in datums:
 			for file in datums["files"]:
-				if file["name"] != "grub-2.04.tar.xz":
-					continue
 				if "hashes" in file and "sha512" in file["hashes"]:
 					future = do_distfile_fetch(file, datums)
 					futures.append(future)
