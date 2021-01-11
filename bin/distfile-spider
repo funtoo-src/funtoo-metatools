@@ -94,6 +94,7 @@ async def main_thread():
 	async for result in hub.pkgtools.autogen.gather_pending_tasks(futures):
 		# TODO: we should really verify hashes? I mean, we may want to store the file anyway. But dunno.
 		pass
+	print("ERRORS", hub.ERRORS)
 
 
 if __name__ == "__main__":
