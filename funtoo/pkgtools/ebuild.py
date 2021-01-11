@@ -190,14 +190,17 @@ class Artifact(Fetchable):
 			if active_dl is not None:
 				# Active download -- wait for it to finish:
 				logging.info(f"Waiting for {self.final_name} download to finish")
-				result = await active_dl.wait_for_completion(self)
+				success = await active_dl.wait_for_completion(self)
+				if success:
+					self._final_data = active_dl.final_data
 			else:
 				# No active download for this file -- start one:
 				dl_file = hub.pkgtools.download.Download(self)
-				result = await dl_file.download()
-			# Will throw an exception if our new final data doesn't match any expected values.
-			self.validate_digests()
-			return result
+				success = await dl_file.download()
+			if success:
+				# Will throw an exception if our new final data doesn't match any expected values.
+				self.validate_digests()
+			return success
 
 
 def aggregate(meta_list):

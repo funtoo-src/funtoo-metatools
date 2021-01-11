@@ -112,7 +112,7 @@ class Download:
 
 	def wait_for_completion(self, artifact):
 		self.artifacts.append(artifact)
-		fut = asyncio.get_running_loop().create_future()
+		fut = hub.LOOP.create_future()
 		self.futures.append(fut)
 		return fut
 
@@ -129,7 +129,6 @@ class Download:
 		on this file, and we will future.set_result() with the boolean return code as well.)
 		"""
 		print("starting download")
-		print(self.artifacts[0].final_path)
 		slot = await acquire_download_slot()
 		async with slot:
 			async with start_download(self):
