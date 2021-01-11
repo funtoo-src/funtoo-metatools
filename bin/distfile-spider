@@ -87,11 +87,11 @@ async def do_distfile_fetch(distinct_key, distinct_file_list):
 
 async def main_thread():
 	mk_json = hub.merge.metadata.load_json(args.infile)
+	if mk_json is None:
+		print(f"Skipping {args.infile} due to old/invalid JSON format.")
+		return
 	futures = []
 	distinct_files = defaultdict(list)
-	if mk_json["atoms"] is None:
-		print(f"Odd -- {args.infile} has no atoms!!!")
-		return
 	for atom, datums in mk_json["atoms"].items():
 		if "files" in datums:
 			for file in datums["files"]:
