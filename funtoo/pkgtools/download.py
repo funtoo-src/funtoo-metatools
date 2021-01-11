@@ -134,7 +134,6 @@ class Download:
 		async with slot:
 			async with start_download(self):
 				success = True
-				print("NOW STARTING DOWNLOAD")
 				try:
 					final_data = await _download(self.artifacts[0])
 				except hub.pkgtools.fetch.FetchError as fe:

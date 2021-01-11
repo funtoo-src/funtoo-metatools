@@ -73,6 +73,7 @@ class Hub:
 	def LOOP(self):
 		return self._thread_ctx.loop
 
+
 	def add(self, path, name=None, **init_kwargs):
 		if name is None:
 			name = os.path.basename(path)

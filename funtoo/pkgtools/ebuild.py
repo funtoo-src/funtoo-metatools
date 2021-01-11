@@ -115,21 +115,16 @@ class Artifact(Fetchable):
 		or fetched Artifact. This method will throw a DigestFailure() exception when these expectations are not
 		met.
 		"""
-		print("VALIDATING")
 		if self.expect is None:
 			return
-		print("DOING EXPECT")
 		for key, val in self.expect.items():
 			if key == "size":
 				if val != self.size:
-					print("SIZE FAIL", val, type(val), self.size, type(self.size))
 					raise DigestFailure(artifact=self, kind="size", expected=val, actual=self.size)
 			else:
 				actual_hash = self.hash(key)
 				if val != actual_hash:
-					print("DIG FAIL")
 					raise DigestFailure(artifact=self, kind=val, expected=val, actual=actual_hash)
-		print("VALIDATION OK")
 
 	@property
 	def fastpull_path(self):
@@ -170,13 +165,10 @@ class Artifact(Fetchable):
 		Returns a boolean with True indicating success and False failure.
 		"""
 		if self.is_fetched():
-			print("IS FETCHED")
 			if self._final_data is not None:
-				print("NO FINAL DATA, DOING NOTHING.")
 				# Nothing to do.
 				return True
 			else:
-				print("UPDATING INTEGRITY DB")
 				# This condition handles a situation where the distfile integrity database has been wiped. We need to
 				# re-populate the data. We already have the file.
 				if len(self.breezybuilds):
@@ -188,33 +180,23 @@ class Artifact(Fetchable):
 						# Will throw an exception if our new final data doesn't match any expected values.
 						self.validate_digests()
 						hub.merge.deepdive.store_distfile_integrity(self.breezybuilds[0].catpkg, self.final_name, self._final_data)
-					print("FART")
 				else:
-					print("ABOUT TO CALC")
 					self._final_data = hub.pkgtools.download.calc_hashes(self.final_path)
-					print("CALC DONE")
 					# Will throw an exception if our new final data doesn't match any expected values.
 					self.validate_digests()
-					print("CALCED HASHES AND VALIDATED DIGESTS")
-				print("FOO FOO")
 				return True
 		else:
-			print("GETTING DL")
 			active_dl = hub.pkgtools.download.get_download(self.final_name)
 			if active_dl is not None:
-				print("WAITING FOR DL")
 				# Active download -- wait for it to finish:
 				logging.info(f"Waiting for {self.final_name} download to finish")
 				result = await active_dl.wait_for_completion(self)
 			else:
-				print("STARTING DL")
 				# No active download for this file -- start one:
 				dl_file = hub.pkgtools.download.Download(self)
 				result = await dl_file.download()
 			# Will throw an exception if our new final data doesn't match any expected values.
-			print("GOING TO VALIDATE DIGESTS")
 			self.validate_digests()
-			print("now return")
 			return result
 
 
