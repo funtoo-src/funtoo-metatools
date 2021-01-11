@@ -104,7 +104,6 @@ class Hub:
 
 
 	def load_plugin(self, path, name, init_kwargs=None):
-		print(f"Loading {path}")
 		spec = importlib.util.spec_from_file_location(name, path)
 		if spec is None:
 			raise FileNotFoundError(f"Could not find plugin: {path}")
