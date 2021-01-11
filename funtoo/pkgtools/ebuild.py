@@ -8,8 +8,6 @@ import jinja2
 import logging
 from collections import defaultdict
 
-logging.basicConfig(level=logging.DEBUG)
-
 hub = None
 
 class DigestFailure(Exception):
