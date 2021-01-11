@@ -101,7 +101,7 @@ def queue_all_indy_autogens():
 		logging.debug(f"Added to queue of pending autogens: {PENDING_QUE[-1]}")
 
 
-async def gather_pending_tasks(task_list):
+async def gather_pending_tasks(task_list, throw=False):
 	"""
 	This function collects completed asyncio coroutines, catches any exceptions recorded during their execution.
 	"""
@@ -113,11 +113,15 @@ async def gather_pending_tasks(task_list):
 	while True:
 		done_list, cur_tasks = await asyncio.wait(cur_tasks, return_when=FIRST_EXCEPTION)
 		for done_item in done_list:
-			try:
+			if throw:
 				result = done_item.result()
 				results.append(result)
-			except Exception as e:
-				exceptions.append((e, sys.exc_info()))
+			else:
+				try:
+					result = done_item.result()
+					results.append(result)
+				except Exception as e:
+					exceptions.append((e, sys.exc_info()))
 		if not len(cur_tasks):
 			break
 	return results, exceptions
