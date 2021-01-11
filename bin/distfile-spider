@@ -89,6 +89,9 @@ async def main_thread():
 	mk_json = hub.merge.metadata.load_json(args.infile)
 	futures = []
 	distinct_files = defaultdict(list)
+	if mk_json["atoms"] is None:
+		print(f"Odd -- {args.infile} has no atoms!!!")
+		sys.exit(1)
 	for atom, datums in mk_json["atoms"].items():
 		if "files" in datums:
 			for file in datums["files"]:
