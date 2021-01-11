@@ -50,10 +50,6 @@ async def do_distfile_fetch(file, datums):
 			return
 		print(a.final_path)
 		await hub.merge.fastpull.inject_into_fastpull(a)
-	else:
-		# we still may have a missing database entry. And we should fix this. In this conditional block, the file
-		# exists in fastpull, but we do not have a DB entry for it. We now know that we should create one. So
-		# let's do it.
 	existing = hub.FASTPULL.find_one({"filename" : file["name"], "sha512" : file["hashes"]["sha512"]})
 	if existing:
 		pass
