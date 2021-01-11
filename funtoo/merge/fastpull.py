@@ -3,6 +3,8 @@
 import logging
 import os
 import random
+from datetime import datetime
+
 import pymongo
 from pymongo import MongoClient
 
@@ -29,8 +31,7 @@ def __init__():
 	# refs: list of references in packages, each item in list a dictionary in the following format:
 	#  kit: kit
 	#  catpkg: catpkg
-	#  atom: atom
-	# Some items may be omitted based on whether they are in our legacy DB or not.
+	#  Some items may be omitted from the above list.
 
 
 def complete_artifact(artifact):
@@ -66,15 +67,20 @@ def get_disk_path(sh):
 	return os.path.join(hub.MERGE_CONFIG.fastpull_path, sh[:2], sh[2:4], sh[4:6], sh)
 
 
-def create_fastpull_db_entry(artifact, rand_id=None):
-	db_entry = {}
-	db_entry["hashes"] = artifact.final_data
-	db_entry["filename"] = artifact.final_name
-	if rand_id:
-		db_entry["rand_id"] = rand_id
+def record_fastpull_db_entry(artifact):
+	refs = []
+	for bzb in artifact.breezybuilds:
+		refs.append({"catpkg": bzb.catpkg})
+	db_ent = hub.FASTPULL.find_one({'filename': artifact.final_name, 'sha512': artifact.get_hash("sha512")})
+	if db_ent:
+		hub.FASTPULL.update({'filename': artifact.final_name, 'sha512': artifact.get_hash("sha512")}, {"$addToSet": {"refs": { "$each" : { refs }}}})
 	else:
-		db_entry["rand_id"] = "".join(random.choice("abcdef0123456789") for _ in range(128))
-	hub.FASTPULL.insert_one(db_entry)
+		db_entry = {}
+		db_entry["hashes"] = artifact.final_data
+		db_entry["filename"] = artifact.final_name
+		db_entry["refs"] = refs
+		db_entry["fetched_on"] = datetime.utcnow()
+		hub.FASTPULL.insert_one(db_entry)
 
 
 async def inject_into_fastpull(artifact):
@@ -98,3 +104,4 @@ async def inject_into_fastpull(artifact):
 		except Exception as e:
 			# Multiple doits running in parallel, trying to link the same file -- could cause exceptions:
 			logging.error(f"Exception encountered when trying to link into fastpull (may be harmless) -- {repr(e)}")
+	record_fastpull_db_entry(artifact)

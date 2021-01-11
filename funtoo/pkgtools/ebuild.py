@@ -12,6 +12,21 @@ logging.basicConfig(level=logging.DEBUG)
 
 hub = None
 
+class DigestFailure(Exception):
+
+	def __init__(self, artifact=None, kind=None, expected=None, actual=None):
+		self.artifact = artifact
+		self.kind = kind
+		self.expected = expected
+		self.actual = actual
+
+	@property
+	def message(self):
+		out = f"Digest Failure for {self.artifact.final_name}:\n"
+		out += f"    Kind: {self.kind}\n"
+		out += f"Expected: {self.expected}\n"
+		out += f"  Actual: {self.actual}"
+		return out
 
 def __init__():
 	hub.MANIFEST_LINES = defaultdict(set)
@@ -22,23 +37,19 @@ class BreezyError(Exception):
 		self.msg = msg
 
 
-class DigestError(Exception):
-	def __init__(self, msg):
-		self.msg = msg
-
-
 class Fetchable:
 	def __init__(self, url=None, **kwargs):
 		self.url = url
 
 
 class Artifact(Fetchable):
-	def __init__(self, url=None, final_name=None, final_path=None, **kwargs):
+	def __init__(self, url=None, final_name=None, final_path=None, expect = None, **kwargs):
 		super().__init__(url=url, **kwargs)
 		self._final_name = final_name
 		self._final_data = None
 		self._final_path = final_path
 		self.breezybuilds = []
+		self.expect = expect
 
 	@property
 	def temp_path(self):
@@ -98,6 +109,23 @@ class Artifact(Fetchable):
 	def record_final_data(self, final_data):
 		self._final_data = final_data
 
+	def validate_digests(self):
+		"""
+		The self.expect dictionary can be used to specify digests that we should expect to find in any completed
+		or fetched Artifact. This method will throw a DigestFailure() exception when these expectations are not
+		met.
+		"""
+		if self.expect is None:
+			return
+		for key, val in self.expect:
+			if key == "size":
+				if val != self.size:
+					raise DigestFailure(artifact=self, kind="size", expected=val, actual=self.size)
+			else:
+				actual_hash = self.hash(key)
+				if val != actual_hash:
+					raise DigestFailure(artifact=self, kind=val, expected=val, actual=actual_hash)
+
 	@property
 	def fastpull_path(self):
 		sh = self._final_data["hashes"]["sha512"]
@@ -123,6 +151,8 @@ class Artifact(Fetchable):
 		integrity_item = hub.merge.deepdive.get_distfile_integrity(self.breezybuilds[0].catpkg, distfile=self.final_name)
 		if integrity_item is not None:
 			self._final_data = integrity_item["final_data"]
+			# Will throw an exception if our new final data doesn't match any expected values.
+			self.validate_digests()
 			return True
 		else:
 			return await self.ensure_fetched()
@@ -148,23 +178,27 @@ class Artifact(Fetchable):
 					)
 					if self._final_data is None:
 						self._final_data = hub.pkgtools.download.calc_hashes(self.final_path)
+						# Will throw an exception if our new final data doesn't match any expected values.
+						self.validate_digests()
 						hub.merge.deepdive.store_distfile_integrity(self.breezybuilds[0].catpkg, self.final_name, self._final_data)
 				else:
 					self._final_data = hub.pkgtools.download.calc_hashes(self.final_path)
+					# Will throw an exception if our new final data doesn't match any expected values.
+					self.validate_digests()
 				return True
 		else:
-			print("IS NOT FETCHED")
 			active_dl = hub.pkgtools.download.get_download(self.final_name)
 			if active_dl is not None:
 				# Active download -- wait for it to finish:
 				logging.info(f"Waiting for {self.final_name} download to finish")
-				return await active_dl.wait_for_completion(self)
+				result = await active_dl.wait_for_completion(self)
 			else:
 				# No active download for this file -- start one:
 				dl_file = hub.pkgtools.download.Download(self)
-				print("GOING TO AWAIT DOWNLOAD")
-				return await dl_file.download()
-				print("AWAIT DONE")
+				result = await dl_file.download()
+			# Will throw an exception if our new final data doesn't match any expected values.
+			self.validate_digests()
+			return result
 
 
 def aggregate(meta_list):

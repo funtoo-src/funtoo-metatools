@@ -214,7 +214,7 @@ async def _download(artifact):
 		for h in HASHES:
 			final_data["hashes"][h] = hashes[h].hexdigest()
 
-		# TODO: this is likely a good place for GPG verification. Implement.
+	# TODO: this is likely a good place for GPG verification. Implement.
 	finally:
 		if os.path.exists(temp_path):
 			os.unlink(temp_path)

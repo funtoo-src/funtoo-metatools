@@ -4,11 +4,9 @@
 # metadata JSON and then check with mongodb to ensure files are in fastpull, and if not, run through
 # the JSON and try to grab missing files, and generate a report. Then exit. So it isn't a long-
 # running daemon -- it will run for as long as needed to do its thing.
-
-import asyncio
+import logging
 import os
 from argparse import ArgumentParser
-from concurrent.futures.thread import ThreadPoolExecutor
 
 from merge_utils.hub import Hub
 
@@ -44,9 +42,11 @@ async def do_distfile_fetch(file):
 		print("CAN'T GRAB, NO URIS", file["name"])
 		return
 	# TODO: Add ability to "expect" a filesize and hash:
-	a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=file["name"])
-	# This call will only ensure it is fetched into our "fetch path". It doesn't make sure it is actually added to
-	# fastpull.
+	try:
+		a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=file["name"], expect={"sha512" : sha512, "size": file["size"]})
+	except hub.pkgtools.ebuild.DigestFailure as af:
+		logging.error(af)
+		return
 	await hub.merge.fastpull.inject_into_fastpull(a)
 
 
