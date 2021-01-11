@@ -34,35 +34,48 @@ async def do_distfile_fetch(file, datums):
 	which will then cause it to be inserted into the fastpull DB.
 	"""
 	sha512 = file["hashes"]["sha512"]
+	size = int(file["size"])
 	fp_path = hub.merge.fastpull.get_disk_path(sha512)
+	print("DOING FETCH", file["name"])
 	if not os.path.exists(fp_path):
+		print(file["name"], "DOES NOT EXIST IN FASTPULL")
 		src_uris = expand_uris(file["src_uri"])
 		if not len(src_uris):
 			print("CAN'T GRAB, NO URIS", file["name"])
 			return
+		print("GOT HERE")
 		# TODO: Add ability to "expect" a filesize and hash:
 		try:
-			a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=file["name"], expect={"sha512" : sha512, "size": file["size"]})
+			a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=file["name"], expect={"sha512" : sha512, "size": size})
 		except hub.pkgtools.ebuild.DigestFailure as af:
+			print("BIGBADERROR")
 			logging.error(af)
 			return
+		print(a.final_path)
 		await hub.merge.fastpull.inject_into_fastpull(a)
 	else:
+		print(file["name"], "EXISTS IN FASTPULL")
 		# we still may have a missing database entry. And we should fix this. In this conditional block, the file
 		# exists in fastpull, but we do not have a DB entry for it. We now know that we should create one. So
 		# let's do it.
-
+	print("NOW CHECK DB ENTRY.")
+	existing = hub.FASTPULL.find_one({"filename" : file["name"], "sha512" : file["hashes"]["sha512"]})
+	if existing:
+		print(file["name"], "FOUND IN DATABASE")
+	else:
+		print("ATTEMPTING TO CREATE", file["name"], "IN DB")
 		db_entry = {}
 		db_entry["fetched_on"] = datetime.utcnow()
 		db_entry["filename"] = file["name"]
 		db_entry["hashes"] = file["hashes"]
-		db_entry["size"] = file["size"]
+		db_entry["size"] = size
 		db_entry["src_uri"] = file["src_uri"]
 		db_entry["refs"] = [ {
 			"kit": datums["kit"],
 			"catpkg": datums["catpkg"]
 		}]
 		hub.FASTPULL.insert_one(db_entry)
+
 
 	# TODO: I think I had some locations where I assumed size of file was bundled with hashes, but that is not how it
 	# is in the JSON.
@@ -73,6 +86,8 @@ async def main_thread():
 	for atom, datums in mk_json["atoms"].items():
 		if "files" in datums:
 			for file in datums["files"]:
+				if file["name"] != "grub-2.04.tar.xz":
+					continue
 				if "hashes" in file and "sha512" in file["hashes"]:
 					future = do_distfile_fetch(file, datums)
 					futures.append(future)
@@ -106,3 +121,5 @@ if __name__ == "__main__":
 	)
 
 	hub.LOOP.run_until_complete(main_thread())
+
+# vim: ts=4 sw=4 noet

@@ -104,4 +104,3 @@ async def inject_into_fastpull(artifact):
 		except Exception as e:
 			# Multiple doits running in parallel, trying to link the same file -- could cause exceptions:
 			logging.error(f"Exception encountered when trying to link into fastpull (may be harmless) -- {repr(e)}")
-	record_fastpull_db_entry(artifact)
