@@ -316,7 +316,9 @@ class GitTree(Tree):
 		result = run(f"(cd {self.root} && git branch -r | grep -v /HEAD)")
 		if result.returncode != 0:
 			# this should not happen
-			raise ShellError("There was some issue getting remote branches on {self.root}.\n" + result.stdout + "\n" + result.stderr)
+			raise ShellError(
+				"There was some issue getting remote branches on {self.root}.\n" + result.stdout + "\n" + result.stderr
+			)
 
 		for branch in result.stdout.split():
 			init_branches.append("/".join(branch.split("/")[1:]))

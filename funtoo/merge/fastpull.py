@@ -71,9 +71,11 @@ def record_fastpull_db_entry(artifact):
 	refs = []
 	for bzb in artifact.breezybuilds:
 		refs.append({"catpkg": bzb.catpkg})
-	db_ent = hub.FASTPULL.find_one({'filename': artifact.final_name, 'sha512': artifact.get_hash("sha512")})
+	db_ent = hub.FASTPULL.find_one({"filename": artifact.final_name, "sha512": artifact.get_hash("sha512")})
 	if db_ent:
-		hub.FASTPULL.update({'filename': artifact.final_name, 'sha512': artifact.get_hash("sha512")}, {"$addToSet": {"refs": { "$each" : { refs }}}})
+		hub.FASTPULL.update(
+			{"filename": artifact.final_name, "sha512": artifact.get_hash("sha512")}, {"$addToSet": {"refs": {"$each": {refs}}}}
+		)
 	else:
 		db_entry = {}
 		db_entry["hashes"] = artifact.final_data

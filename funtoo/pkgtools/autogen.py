@@ -126,6 +126,7 @@ async def gather_pending_tasks(task_list, throw=False):
 			break
 	return results, exceptions
 
+
 def init_pkginfo_for_package(defaults=None, base_pkginfo=None, template_path=None, gen_path=None):
 	"""
 	This function generates the final pkginfo that is passed to the generate() function in the generator sub

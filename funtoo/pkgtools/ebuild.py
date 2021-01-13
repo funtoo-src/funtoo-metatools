@@ -10,8 +10,8 @@ from collections import defaultdict
 
 hub = None
 
-class DigestFailure(Exception):
 
+class DigestFailure(Exception):
 	def __init__(self, artifact=None, kind=None, expected=None, actual=None):
 		self.artifact = artifact
 		self.kind = kind
@@ -25,6 +25,7 @@ class DigestFailure(Exception):
 		out += f"Expected: {self.expected}\n"
 		out += f"  Actual: {self.actual}"
 		return out
+
 
 def __init__():
 	hub.MANIFEST_LINES = defaultdict(set)
@@ -41,7 +42,7 @@ class Fetchable:
 
 
 class Artifact(Fetchable):
-	def __init__(self, url=None, final_name=None, final_path=None, expect = None, **kwargs):
+	def __init__(self, url=None, final_name=None, final_path=None, expect=None, **kwargs):
 		super().__init__(url=url, **kwargs)
 		self._final_name = final_name
 		self._final_data = None

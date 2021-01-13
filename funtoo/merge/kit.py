@@ -122,9 +122,8 @@ async def checkout_kit(ctx, pull=None):
 	#       to auto-create all auto-generated kits, but push them to a remote location. Likewise, you will
 	#       want to auto-clone the 'Official' independent kits, but then rewrite their origin and push them
 	#       to the same remote location. We should support this workflow and currently don't.
-	wipe_kit = False
+
 	if kind == "independent":
-		wipe_kit = True
 		# For independent kits, we must clone the source tree and can't simply auto-create a tree from scratch:
 		git_class = hub.merge.tree.GitTree
 		if ctx.kit.get("url", None):
@@ -155,13 +154,8 @@ async def checkout_kit(ctx, pull=None):
 	except AttributeError:
 		pass
 
-	if getattr(hub, "NEST_KITS", True):
-		root = os.path.join(hub.MERGE_CONFIG.dest_trees, "meta-repo/kits", ctx.kit.name)
-	else:
-		root = os.path.join(hub.MERGE_CONFIG.dest_trees, ctx.kit.name)
-	if wipe_kit and os.path.exists(root):
-		# FL-7935: independent kits should be wiped and re-cloned, so we get the latest upstream changes:
-		hub.merge.tree.runShell(f"rm -rf {root}")
+	root = get_kit_root(ctx.kit.name)
+
 	out_tree = git_class(ctx.kit.name, branch=branch, root=root, **kwargs)
 	out_tree.initialize()
 
@@ -171,6 +165,23 @@ async def checkout_kit(ctx, pull=None):
 	# TODO: If an auto-generated kit, we will want to still be able to push up to a remote location
 
 	return out_tree
+
+
+def get_kit_root(kit_name):
+	if getattr(hub, "NEST_KITS", True):
+		return os.path.join(hub.MERGE_CONFIG.dest_trees, "meta-repo/kits", kit_name)
+	else:
+		return os.path.join(hub.MERGE_CONFIG.dest_trees, kit_name)
+
+
+def wipe_indy_kits():
+	indy_roots = set()
+	for kit_dict in hub.KIT_GROUPS:
+		if kit_dict["kind"] == "independent":
+			indy_roots.add(get_kit_root(kit_dict["name"]))
+	for root in indy_roots:
+		if os.path.exists(root):
+			hub.merge.tree.runShell(f"rm -rf {root}")
 
 
 async def generate_kit(ctx):

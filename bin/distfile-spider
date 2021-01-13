@@ -37,7 +37,7 @@ async def do_distfile_fetch(distinct_key, distinct_file_list):
 	with a package. It will then see if the file is in the fastpull DB. If not, it will ensure the file is fetched,
 	which will then cause it to be inserted into the fastpull DB.
 	"""
-	sys.stdout.write('_')
+	sys.stdout.write("_")
 	sys.stdout.flush()
 	name, sha512, size = distinct_key
 
@@ -49,10 +49,7 @@ async def do_distfile_fetch(distinct_key, distinct_file_list):
 			# grab first file for later use
 			ffile = file
 		all_src_uris = all_src_uris | set(file["src_uri"])
-		refs.append({
-			"kit": datums["kit"],
-			"catpkg": datums["catpkg"]
-		})
+		refs.append({"kit": datums["kit"], "catpkg": datums["catpkg"]})
 
 	src_uris = expand_uris(list(all_src_uris))
 	fp_path = hub.merge.fastpull.get_disk_path(sha512)
@@ -63,12 +60,12 @@ async def do_distfile_fetch(distinct_key, distinct_file_list):
 		if not len(src_uris):
 			return
 		try:
-			a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=name, expect={"sha512" : sha512, "size": size})
+			a = hub.pkgtools.ebuild.Artifact(url=src_uris[0], final_name=name, expect={"sha512": sha512, "size": size})
 			await hub.merge.fastpull.inject_into_fastpull(a)
 		except hub.pkgtools.ebuild.DigestFailure as af:
 			logging.error(af)
 			return
-	existing = hub.FASTPULL.find_one({"filename" : name, "hashes.sha512" : sha512})
+	existing = hub.FASTPULL.find_one({"filename": name, "hashes.sha512": sha512})
 	if existing:
 		pass
 	else:
@@ -84,7 +81,11 @@ async def do_distfile_fetch(distinct_key, distinct_file_list):
 		hub.FASTPULL.insert_one(db_entry)
 		sys.stdout.write(":")
 		sys.stdout.flush()
+
+
 exceptions = None
+
+
 async def main_thread():
 	global exceptions
 	mk_json = hub.merge.metadata.load_json(args.infile)
@@ -102,9 +103,12 @@ async def main_thread():
 
 	with ThreadPoolExecutor(max_workers=cpu_count()) as threadpool:
 		for distinct_key, distinct_file_list in distinct_files.items():
-			future = hub.LOOP.run_in_executor(threadpool, hub.pkgtools.thread.run_async_adapter, do_distfile_fetch, distinct_key, distinct_file_list)
+			future = hub.LOOP.run_in_executor(
+				threadpool, hub.pkgtools.thread.run_async_adapter, do_distfile_fetch, distinct_key, distinct_file_list
+			)
 			futures.append(future)
 		results, exceptions = await hub.pkgtools.autogen.gather_pending_tasks(futures, throw=True)
+
 
 if __name__ == "__main__":
 

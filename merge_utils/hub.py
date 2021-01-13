@@ -75,11 +75,9 @@ class Hub:
 			self._thread_ctx.loop = asyncio.new_event_loop()
 			asyncio.set_event_loop(self._thread_ctx.loop)
 
-
 	@property
 	def THREAD_CTX(self):
 		return self._thread_ctx
-
 
 	@property
 	def LOOP(self):
@@ -94,14 +92,12 @@ class Hub:
 			loop = self._thread_ctx.loop = asyncio.new_event_loop()
 		return loop
 
-
 	def add(self, path, name=None, **init_kwargs):
 		if name is None:
 			name = os.path.basename(path)
 		self.paths[name] = PluginDirectory(self, os.path.join(self.root_dir, path), init_kwargs=init_kwargs)
 		if not self.lazy:
 			self.paths[name].load()
-
 
 	def load_plugin(self, path, name, init_kwargs=None):
 		spec = importlib.util.spec_from_file_location(name, path)

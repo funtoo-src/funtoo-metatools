@@ -29,6 +29,11 @@ async def main_thread():
 		print(f"Release not found: {hub.RELEASE}.")
 		sys.exit(1)
 
+	# We want to delete all locally-cloned independent kits before we start processing, so we re-clone them to get
+	# pristine copies with the latest commits (see FL-7935):
+
+	hub.merge.kits.wipe_indy_kits()
+
 	thread_keys, thread_groups = hub.merge.sources.get_kits_in_correct_processing_order()
 
 	hub.KIT_RESULTS = OrderedDict()
