@@ -310,8 +310,23 @@ class GitTree(Tree):
 				print("Error: tree %s does not exist, but no clone URL specified. Exiting." % self.root)
 				raise ShellError("Aborted due to failed command.")
 
-		# At the very least, create a local branch for the branch we're interested in.
-		init_branches = [self.branch]
+		init_branches = []
+
+		# We should also, for the sake of mirroring working, create all local branches for remote branches.
+		result = run(f"(cd {self.root} && git branch -r | grep -v /HEAD)")
+		if result.returncode != 0:
+			# this should not happen
+			raise ShellError("There was some issue getting remote branches on {self.root}.\n" + result.stdout + "\n" + result.stderr)
+
+		for branch in result.stdout.split():
+			init_branches.append("/".join(branch.split("/")[1:]))
+
+		if self.branch not in init_branches:
+			raise ShellError(f"Could not find remote branch: {self.branch}.")
+
+		# Put the branch we want at the end, so we end up with it active/
+		init_branches.remove(self.branch)
+		init_branches += [self.branch]
 
 		for branch in init_branches:
 			if not self.localBranchExists(branch):
