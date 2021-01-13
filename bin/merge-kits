@@ -8,8 +8,6 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 
 from dict_tools.data import NamespaceDict
-
-from merge_utils.config import Configuration
 from merge_utils.hub import Hub
 
 
