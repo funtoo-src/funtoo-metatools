@@ -337,6 +337,7 @@ def mirror_repository(repo_obj):
 	Mirror a repository to its mirror location, ie. GitHub.
 	"""
 	base_path = os.path.join(hub.MERGE_CONFIG.temp_path, "mirror_repos")
+	hub.merge.tree.runShell(f"rm -rf {base_path}")
 	os.makedirs(base_path, exist_ok=True)
 	hub.merge.tree.runShell(f"git clone --bare {repo_obj.root} {base_path}/{repo_obj.name}.pushme")
 	hub.merge.tree.runShell(
