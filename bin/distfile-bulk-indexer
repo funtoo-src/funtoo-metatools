@@ -3,7 +3,6 @@
 # The purpose of this executable is to point to a directory path with existing distfiles, and grab them all and
 # add them to fastpull.
 import asyncio
-import logging
 import multiprocessing
 import os
 import sys

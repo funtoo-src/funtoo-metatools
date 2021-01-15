@@ -24,11 +24,24 @@ setuptools.setup(
 		"Jinja2",
 		"xmltodict",
 		"aiodns",
+		"aiofiles",
 		"aiohttp",
+		"pymongo",
+		"tornado",
 		"toml",
 		"beautifulsoup4",
 		"dict_toolbox",
 	],
+	#   320  sudo emerge -av dict-toolbox
+	#   322  sudo emerge -av aiofiles
+	#   333  sudo emerge -av pymongo
+	#   335  sudo emerge -av aiohttp
+	#   337  sudo emerge -av tornado
+	#   338  sudo emerge -av www-servers/tornado
+	#   339  sudo emerge -av beautifulsoup
+	#   341  sudo emerge -av xmltodict
+	#   344  sudo emerge -av jinja
+	#   346  sudo emerge -av aiodns
 	packages=setuptools.find_packages(),
 	package_data={"": ["*.tmpl"]},
 )

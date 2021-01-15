@@ -11,18 +11,12 @@
 #
 # for x in $(deepquery dev-perl | cut -f1 -d' '); do git rm -rf $x; done
 
-import logging
 import sys
-
-import pop.hub
-
-hub_logger = logging.getLogger("pop.hub")
-hub_logger.setLevel(logging.DEBUG)
-hub = pop.hub.Hub()
-
+from merge_utils.hub import Hub
 
 if __name__ == "__main__":
-	hub.pop.sub.add("funtoo.merge")
+	hub = Hub()
+	hub.add("funtoo/merge")
 
 	nodep_catpkgs = dict()
 	for pypak in hub.DEEPDIVE.find({"category": sys.argv[1]}):

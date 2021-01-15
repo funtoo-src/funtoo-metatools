@@ -34,6 +34,7 @@ class PluginDirectory:
 			return
 		init_path = os.path.join(self.path, "init.py")
 		if os.path.exists(init_path):
+			print(f"Loading init from {init_path}")
 			# Load "init.py" plugin and also pass init_kwargs which will get passed to the __init__() method.
 			self.plugins["init"] = self.hub.load_plugin(init_path, "init", init_kwargs=self.init_kwargs)
 		self.init_done = True
@@ -95,7 +96,10 @@ class Hub:
 	def add(self, path, name=None, **init_kwargs):
 		if name is None:
 			name = os.path.basename(path)
-		self.paths[name] = PluginDirectory(self, os.path.join(self.root_dir, path), init_kwargs=init_kwargs)
+		pdir = os.path.join(self.root_dir, path)
+		if not os.path.isdir(pdir):
+			raise FileNotFoundError(f"Plugin directory {pdir} not found or not a directory.")
+		self.paths[name] = PluginDirectory(self, pdir, init_kwargs=init_kwargs)
 		if not self.lazy:
 			self.paths[name].load()
 
