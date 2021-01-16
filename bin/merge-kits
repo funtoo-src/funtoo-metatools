@@ -171,10 +171,7 @@ if __name__ == "__main__":
 	)
 
 	hub.CPM_LOGGER = None
-
-	loop = asyncio.get_event_loop()
-	loop.set_debug(enabled=True)
-	loop.run_until_complete(main_thread())
+	hub.LOOP.run_until_complete(main_thread())
 
 	# if len(hub.METADATA_ERRORS):
 	# 	print()

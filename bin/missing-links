@@ -6,18 +6,12 @@
 # referenced by the specified kit/branch that cannot be found in this kit, OR any
 # other kit -- in other words, packages that are simply missing from the tree!
 
-import logging
 import sys
-import pop.hub
-
-hub_logger = logging.getLogger("pop.hub")
-hub_logger.setLevel(logging.DEBUG)
-hub = pop.hub.Hub()
-
+from merge_utils.hub import Hub
 
 if __name__ == "__main__":
-	hub.pop.sub.add("funtoo.merge")
-
+	hub = Hub()
+	hub.add("funtoo/merge")
 	nodep_catpkgs = dict()
 	all_relations = set()
 	all_catpkgs = set()

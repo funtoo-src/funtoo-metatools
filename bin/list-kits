@@ -1,25 +1,20 @@
 #!/usr/bin/python3
 
-import logging
-import pop.hub
+# This command will list all kits in foundations.py, defined for a particular release specified on the command-line.
+# example:
+# $ list-kits 1.4-release
 
-from merge_utils.config import Configuration
+import sys
 from funtoo.merge.tree import GitTree
-
-hub_logger = logging.getLogger("pop.hub")
-hub_logger.setLevel(logging.DEBUG)
-hub = pop.hub.Hub()
-
+from merge_utils.hub import Hub
 
 if __name__ == "__main__":
-	hub.pop.sub.add("funtoo.merge")
-	hub.MERGE_CONFIG = config = Configuration()
-	hub.RELEASE = "1.4-release"
+	hub = Hub()
+	hub.pop.sub.add("funtoo/merge", release=sys.argv[1])
 	hub.FIXUP_REPO = GitTree(
-		hub,
 		"kit-fixups",
-		config.branch("kit-fixups"),
-		url=config.kit_fixups,
+		hub.MERGE_CONFIG.branch("kit-fixups"),
+		url=hub.MERGE_CONFIG.kit_fixups,
 		root="/home/drobbins/development/kit-fixups-dr",
 	)
 

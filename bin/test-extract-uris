@@ -1,13 +1,6 @@
 #!/usr/bin/python3
 
-import logging
 import sys
-
-import pop.hub
-
-hub_logger = logging.getLogger("pop.hub")
-hub_logger.setLevel(logging.DEBUG)
-hub = pop.hub.Hub()
 
 uri_strs = [
 	"https://foo.bar.com/blah-1.0.tar.gz",
@@ -39,5 +32,6 @@ def main_thread():
 
 
 if __name__ == "__main__":
-	hub.pop.sub.add("funtoo.merge")
+	hub = Hub()
+	hub.add("funtoo/merge")
 	main_thread()
