@@ -1,0 +1,18 @@
+#!/usr/bin/python3
+
+from merge_utils.hub import Hub
+import os
+
+
+def do_walk():
+	for dirpath, _, filenames in os.walk(hub.MERGE_CONFIG.fastpull_path):
+		print(filenames)
+
+
+if __name__ == "__main__":
+	hub = Hub(lazy=False)
+	hub.add("funtoo/merge")
+	print(f"Scanning {hub.MERGE_CONFIG.fastpull_path}...")
+	do_walk()
+
+# vim: ts=4 sw=4 noet
