@@ -5,8 +5,11 @@ import os
 
 
 def do_walk():
+	count = 0
 	for dirpath, _, filenames in os.walk(hub.MERGE_CONFIG.fastpull_path):
+		count += len(filenames)
 		print(filenames)
+	print(f"Count is {count}")
 
 
 if __name__ == "__main__":
