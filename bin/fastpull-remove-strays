@@ -2,14 +2,32 @@
 
 from merge_utils.hub import Hub
 import os
+import sys
 
 
 def do_walk():
 	count = 0
+	invalid = []
+	strays = []
+	stray_path = os.path.join(hub.MERGE_CONFIG.temp_path, "strays")
+	os.makedirs(stray_path, exist_ok=True)
 	for dirpath, _, filenames in os.walk(hub.MERGE_CONFIG.fastpull_path):
+		for filename in filenames:
+			if len(filename) != 128:
+				invalid.append(os.path.join(dirpath, filename))
+			existing = hub.FASTPULL.find_one({"hashes.sha512" : filename})
+			if not existing:
+				my_path = os.path.join(dirpath, filename)
+				strays.append(my_path)
+				sys.stdout.write(".")
+				sys.stdout.flush()
+				dest = os.path.join(stray_path, filename)
+				os.link(my_path, dest)
+				os.unlink(my_path)
 		count += len(filenames)
-		print(filenames)
 	print(f"Count is {count}")
+	print(f"Invalid is {len(invalid)}")
+	print(f"{len(strays)} strays.")
 
 
 if __name__ == "__main__":
