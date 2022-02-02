@@ -1,0 +1,64 @@
+#!/usr/bin/python3
+
+# This executable command will add the first filename specified to the fastpull database.
+
+
+import asyncio
+import multiprocessing
+import os
+import sys
+from datetime import datetime
+from queue import Queue
+
+from subpop.hub import Hub
+
+hub = Hub()
+import dyne.org.funtoo.metatools.merge as merge
+import dyne.org.funtoo.metatools.pkgtools as pkgtools
+num_indexers = multiprocessing.cpu_count()
+main_queue = Queue(maxsize=1000)
+terminus = "ALL_DONE_WITH_WORK"
+
+
+def file_walker(path):
+	for root, dirs, files in os.walk(path, topdown=False):
+		for name in files:
+			main_queue.put(os.path.join(root, name))
+	for count in range(0, num_indexers):
+		main_queue.put(terminus)
+
+
+async def file_indexer(next_file):
+	# TODO: this needs testing -- create an Artifact based on a final_path hasn't really been tested:
+	final_name = os.path.basename(next_file)
+	artifact = pkgtools.ebuild.Artifact(final_path=next_file, final_name=final_name)
+	await merge.fastpull.inject_into_fastpull(artifact)
+	existing = merge.model.FASTPULL.find_one({"filename": artifact.final_name, "hashes.sha512": artifact.hashes['sha512']})
+	print("GONNA DO SOMETHING")
+	if existing:
+		sys.stdout.write("_")
+		sys.stdout.flush()
+	else:
+		# store size inside hashes
+		db_entry = {}
+		db_entry["fetched_on"] = datetime.utcnow()
+		db_entry["filename"] = artifact.final_name
+		db_entry["hashes"] = artifact.hashes
+		db_entry["src_uri"] = []
+		db_entry["refs"] = None
+		merge.model.FASTPULL.insert_one(db_entry)
+		sys.stdout.write("+")
+		sys.stdout.flush()
+	sys.stdout.write(".")
+	sys.stdout.flush()
+
+
+async def main_thread(path):
+	merge.apply_config(fastpull=True)
+	await file_indexer(path)
+	print("Indexing complete.")
+
+
+if __name__ == "__main__":
+
+	asyncio.run(main_thread(sys.argv[1]))

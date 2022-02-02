@@ -83,6 +83,7 @@ async def inject_into_fastpull(artifact):
 		try:
 			os.makedirs(os.path.dirname(fastpull_path), exist_ok=True)
 			os.link(artifact.final_path, fastpull_path)
+			logging.warning(f"Object {artifact.final_path} injected into fastpull.")
 		except Exception as e:
 			# Multiple doits running in parallel, trying to link the same file -- could cause exceptions:
 			logging.error(f"Exception encountered when trying to link into fastpull (may be harmless) -- {repr(e)}")
