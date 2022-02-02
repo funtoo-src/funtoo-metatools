@@ -1,0 +1,60 @@
+#!/usr/bin/python3
+
+# The purpose of this executable is to point to a directory path with existing distfiles, and grab them all and
+# add them to fastpull.
+import asyncio
+import multiprocessing
+import os
+import sys
+from concurrent.futures._base import as_completed
+from concurrent.futures.thread import ThreadPoolExecutor
+from queue import Queue
+
+
+from merge_utils.config import Configuration
+from subpop.hub import Hub
+
+num_indexers = multiprocessing.cpu_count()
+main_queue = Queue(maxsize=1000)
+terminus = "ALL_DONE_WITH_WORK"
+
+
+def file_walker(path):
+	for root, dirs, files in os.walk(path, topdown=False):
+		for name in files:
+			main_queue.put(os.path.join(root, name))
+	for count in range(0, num_indexers):
+		main_queue.put(terminus)
+
+
+async def file_indexer():
+	while True:
+		next_file = main_queue.get()
+		if next_file == terminus:
+			break
+		# TODO: this needs testing -- create an Artifact based on a final_path hasn't really been tested:
+		artifact = hub.pkgtools.ebuild.Artifact(final_path=next_file)
+		await hub.merge.fastpull.inject_into_fastpull(artifact)
+		sys.stdout.write(".")
+		sys.stdout.flush()
+
+
+async def main_thread(path):
+	futures = []
+	with ThreadPoolExecutor() as executor:
+		futures.append(executor.submit(file_walker, path))
+		for count in range(0, num_indexers):
+			future = asyncio.get_running_loop().run_in_executor(executor, hub.pkgtools.thread.run_async_adapter, file_indexer)
+			futures.append(future)
+
+	for future in as_completed(futures):
+		sys.stdout.write("x")
+		sys.stdout.flush()
+	print("Indexing complete.")
+
+
+if __name__ == "__main__":
+	hub = Hub(lazy=False)
+	hub.add("funtoo/merge")
+	hub.add("funtoo/pkgtools")
+	asyncio.run(main_thread(sys.argv[1]))
