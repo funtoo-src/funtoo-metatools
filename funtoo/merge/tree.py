@@ -73,9 +73,12 @@ class Tree:
 	async def autogen(self, src_offset=None):
 		if src_offset is None:
 			src_offset = ""
-		if self.autogenned == src_offset:
+		if self.autogenned:
 			return
-		autogen_path = os.path.join(self.root, src_offset)
+		if src_offset:
+			autogen_path = os.path.join(self.root, src_offset)
+		else:
+			autogen_path = self.root
 		if not os.path.exists(autogen_path):
 			print("Skipping autogen as src_offset %s (in %s) doesn't exist!" % (src_offset, autogen_path))
 			return
@@ -87,7 +90,7 @@ class Tree:
 		)
 		if retcode != 0:
 			raise GitTreeError(f"Autogen failed in {self.root} -- offset {src_offset}.")
-		self.autogenned = src_offset
+		self.autogenned = True
 
 	def cleanTree(self):
 		print("Cleaning tree %s" % self.root)
