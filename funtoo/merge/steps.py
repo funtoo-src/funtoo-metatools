@@ -402,6 +402,16 @@ class ZapMatchingEbuilds(MergeStep):
 				merge.tree.run_shell("rm -rf %s" % dest_pkgdir)
 
 
+class JustAutogen(MergeStep):
+
+	def __init__( self, srctree):
+		self.srctree = srctree
+
+	async def run(self, desttree):
+
+		await self.srctree.autogen()
+
+
 class InsertEbuilds(MergeStep):
 	"""
 	Insert ebuilds in source tre into destination tree.
