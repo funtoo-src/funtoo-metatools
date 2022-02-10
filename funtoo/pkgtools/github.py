@@ -5,7 +5,34 @@ import packaging.version
 # augmenting the pkginfo dict, and thus easy to integrate into yaml-based autogens.
 
 
-async def release_gen(hub, github_user, github_repo, release_data=None, tarball=None, select=None, **kwargs):
+def factor_filters(include):
+	"""
+	By default, the ``release_gen`` method below filters prereleases and drafts. It's now possible
+	to disable this by specifying an 'include=' keyword argument to either function, which can be a
+	set or a list containing one or more of the following strings:
+
+	* "prerelease"
+	* "draft"
+
+	Given this include list/set as an argument, this method will return the set of values that should
+	be checked and skipped if found to be True in the JSON (the inverse set, which is easier to use
+	in the ``release_gen`` loop when we check.)
+	"""
+
+	valid_filters = {"prerelease", "draft"}
+
+	if include is not None:
+		for item in include:
+			if item not in valid_filters:
+				raise ValueError(f"release_gen include= option of '{item}' is not recognized")
+		include = set(include)
+	else:
+		include = {}
+
+	return valid_filters - include
+
+
+async def release_gen(hub, github_user, github_repo, release_data=None, tarball=None, select=None, include=None, **kwargs):
 	"""
 	This method will query the GitHub API for releases for a specific project, find the most recent
 	release, and then return a dictionary containing the keys "version", "artifacts" and "sha", which
@@ -25,12 +52,19 @@ async def release_gen(hub, github_user, github_repo, release_data=None, tarball=
 
 	``select`` may contain a regex string which specifies a pattern that must match the tag_name for
 	it to be considered.
+
+	``include`` may contain a list or set of strings (currently supporting "prerelease" and "draft") which
+	if defined will be considered as a match. By default, prereleases and drafts are skipped.
 	"""
+
+	skip_filters = factor_filters(include)
+
 	if not release_data:
 		release_data = await hub.pkgtools.fetch.get_page(f"https://api.github.com/repos/{github_user}/{github_repo}/releases", is_json=True)
 	for release in release_data:
-		if release['draft'] or release['prerelease']:
-			continue
+		for skip in skip_filters:
+			if release[skip]:
+				continue
 		if select and not re.match(select, release['tag_name']):
 			continue
 		match_obj = re.search('([0-9.]+)', release['tag_name'])
