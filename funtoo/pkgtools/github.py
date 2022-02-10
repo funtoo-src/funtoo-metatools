@@ -3,6 +3,12 @@ import packaging.version
 
 # tag_gen and release_gen are higher-level functions that return a dict of items, suitable for
 # augmenting the pkginfo dict, and thus easy to integrate into yaml-based autogens.
+from enum import Enum
+
+
+class SortMethod(Enum):
+	DATE = "DATE"
+	VERSION = "VERSION"
 
 
 def factor_filters(include):
@@ -27,12 +33,12 @@ def factor_filters(include):
 				raise ValueError(f"release_gen include= option of '{item}' is not recognized")
 		include = set(include)
 	else:
-		include = {}
+		include = set()
 
 	return valid_filters - include
 
 
-async def release_gen(hub, github_user, github_repo, release_data=None, tarball=None, select=None, include=None, **kwargs):
+async def release_gen(hub, github_user, github_repo, release_data=None, tarball=None, select=None, include=None, sort: SortMethod = SortMethod.VERSION, **kwargs):
 	"""
 	This method will query the GitHub API for releases for a specific project, find the most recent
 	release, and then return a dictionary containing the keys "version", "artifacts" and "sha", which
@@ -61,6 +67,9 @@ async def release_gen(hub, github_user, github_repo, release_data=None, tarball=
 
 	if not release_data:
 		release_data = await hub.pkgtools.fetch.get_page(f"https://api.github.com/repos/{github_user}/{github_repo}/releases", is_json=True)
+
+	versions_and_release_elements = []
+
 	for release in release_data:
 		for skip in skip_filters:
 			if release[skip]:
@@ -72,33 +81,47 @@ async def release_gen(hub, github_user, github_repo, release_data=None, tarball=
 			version = match_obj.groups()[0]
 		else:
 			continue
-		if tarball:
-			# We are looking for a specific tarball:
-			archive_name = tarball.format(version=version)
-			for asset in release['assets']:
-				if asset['name'] == archive_name:
-					return {
-						"version": version,
-						"artifacts": [hub.pkgtools.ebuild.Artifact(url=asset['browser_download_url'], final_name=archive_name)]
-					}
-		else:
-			# We want to grab the default tarball for the associated tag:
-			desired_tag = release['tag_name']
-			tag_data = await hub.pkgtools.fetch.get_page(f"https://api.github.com/repos/{github_user}/{github_repo}/tags", is_json=True)
-			sha = next(filter(lambda tag_ent: tag_ent["name"] == desired_tag, tag_data))['commit']['sha']
+		versions_and_release_elements.append((version, release))
 
-			########################################################################################################
-			# GitHub does not list this URL in the release's assets list, but it is always available if there is an
-			# associated tag for the release. Rather than use the tag name (which would give us a non-distinct file
-			# name), we use the sha1 to grab a specific URL and use a specific final name on disk for the artifact.
-			########################################################################################################
+	if not len(versions_and_release_elements):
+		raise ValueError(f"Could not find a suitable release.")
 
-			url = f"https://github.com/{github_user}/{github_repo}/tarball/{sha}"
-			return {
-				"version": version,
-				"artifacts": [hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}-{sha[:7]}.tar.gz')],
-				"sha": sha
-			}
+	# By default, we should sort our releases by version, and start with the most recent version. This is important for some GitHub
+	# repos that have multiple 'channels' so the releases may vary and most recent by date may not be what we want.
+
+	if sort == SortMethod.VERSION:
+		# Have most recent by version at the beginning:
+		versions_and_release_elements = sorted(versions_and_release_elements, key=lambda v: packaging.version.parse(v[0]), reverse=True)
+
+	version, release = versions_and_release_elements[0]
+
+	if tarball:
+		# We are looking for a specific tarball:
+		archive_name = tarball.format(version=version)
+		for asset in release['assets']:
+			if asset['name'] == archive_name:
+				return {
+					"version": version,
+					"artifacts": [hub.pkgtools.ebuild.Artifact(url=asset['browser_download_url'], final_name=archive_name)]
+				}
+	else:
+		# We want to grab the default tarball for the associated tag:
+		desired_tag = release['tag_name']
+		tag_data = await hub.pkgtools.fetch.get_page(f"https://api.github.com/repos/{github_user}/{github_repo}/tags", is_json=True)
+		sha = next(filter(lambda tag_ent: tag_ent["name"] == desired_tag, tag_data))['commit']['sha']
+
+		########################################################################################################
+		# GitHub does not list this URL in the release's assets list, but it is always available if there is an
+		# associated tag for the release. Rather than use the tag name (which would give us a non-distinct file
+		# name), we use the sha1 to grab a specific URL and use a specific final name on disk for the artifact.
+		########################################################################################################
+
+		url = f"https://github.com/{github_user}/{github_repo}/tarball/{sha}"
+		return {
+			"version": version,
+			"artifacts": [hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}-{sha[:7]}.tar.gz')],
+			"sha": sha
+		}
 
 
 def iter_tag_versions(tags_list, select=None):
