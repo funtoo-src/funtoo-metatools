@@ -201,6 +201,7 @@ async def generate_kit(ctx):
 		pre_steps, post_steps = merge.foundations.get_kit_pre_post_steps(ctx)
 		from_tree = merge.model.SOURCE_REPOS[ctx.kit.source]
 		steps += [
+			merge.steps.JustAutogen(from_tree),
 			merge.steps.SyncFromTree(from_tree)
 		]
 		steps += copy_from_fixups_steps(ctx)
