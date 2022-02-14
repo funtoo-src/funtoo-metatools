@@ -4,6 +4,8 @@ import os
 import asyncio
 import sys
 from asyncio import Task
+from collections import OrderedDict
+
 import jinja2
 import logging
 
@@ -307,7 +309,7 @@ class BreezyBuild:
 		if type(self.artifacts) == list:
 			for artifact in self.artifacts:
 				yield artifact
-		elif type(self.artifacts) == dict:
+		elif type(self.artifacts) in (dict, OrderedDict):
 			for key, artifact in self.artifacts.items():
 				yield artifact
 		else:
