@@ -71,7 +71,7 @@ async def release_gen(hub, github_user, github_repo, release_data=None, tarball=
 	versions_and_release_elements = []
 
 	for release in release_data:
-		if any(release[skip] for skip in skip_filters]):
+		if any(release[skip] for skip in skip_filters):
 			continue
 		if select and not re.match(select, release['tag_name']):
 			continue
