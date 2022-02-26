@@ -71,9 +71,8 @@ async def release_gen(hub, github_user, github_repo, release_data=None, tarball=
 	versions_and_release_elements = []
 
 	for release in release_data:
-		for skip in skip_filters:
-			if release[skip]:
-				continue
+		if any(release[skip] for skip in skip_filters]):
+			continue
 		if select and not re.match(select, release['tag_name']):
 			continue
 		match_obj = re.search('([0-9.]+)', release['tag_name'])
