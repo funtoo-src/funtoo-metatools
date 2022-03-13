@@ -204,14 +204,16 @@ class AutoCreatedGitTree(Tree):
 	stuff"-type tree.
 	"""
 
-	def __init__(self, name: str, branch: str = "master", root: str = None, commit_sha1: str = None, **kwargs):
+	def __init__(self, name: str, branch: str = "master", root: str = None, commit_sha1: str = None, fixup_origin=None, **kwargs):
 		super().__init__(root=root)
 		self.branch = branch
 		self.name = self.reponame = name
 		self.has_cleaned = False
 		self.initialized = False
 		self.commit_sha1 = commit_sha1
+		self.fixup_origin = fixup_origin
 		self.merged = []
+		assert self.fixup_origin
 
 	def _create_branch(self):
 		run_shell(f"git checkout master; git checkout -b {self.branch}", chdir=self.root)
@@ -242,6 +244,19 @@ class AutoCreatedGitTree(Tree):
 				raise GitTreeError("%s: Was not able to check out specified SHA1: %s." % (self.root, self.commit_sha1))
 			if self.currentLocalBranch != self.branch:
 				raise GitTreeError("Checking out of SHA1 resulted in switching branch to: %s. Aborting." % self.currentLocalBranch)
+
+		if self.fixup_origin:
+			origin_exists = run(f"(cd {self.root} && git config remote.origin.url)")
+			if origin_exists.returncode == 0:
+				origin = origin_exists.stdout.strip()
+				if origin != self.fixup_origin:
+					origin_set = run(f"(cd {self.root} && git remote set-url origin {self.fixup_origin.format(repo=self.name)})")
+					if origin_set.returncode != 0:
+						raise GitTreeError(f"Unable to fixup origin: {origin_set.stderr}")
+			else:
+				origin_set = run(f"(cd {self.root} && git remote add origin {self.fixup_origin.format(repo=self.name)})")
+				if origin_set.returncode != 0:
+					raise GitTreeError(f"Unable to add origin: {origin_set.stderr}")
 		self.initialized = True
 
 

@@ -4,8 +4,9 @@ import os
 import sys
 from configparser import ConfigParser
 
-
 class Configuration:
+
+
 	def __init__(self, prod=False, path=None, job=None, fastpull=None):
 		self.prod = prod
 		self.job = job
@@ -88,6 +89,10 @@ class Configuration:
 	@property
 	def mirror(self):
 		return self.get_option("urls", "mirror", default=False)
+
+	@property
+	def destination_base_url(self):
+		return self.get_option("destinations", "base_url", default=None)
 
 	@property
 	def gentoo_staging(self):

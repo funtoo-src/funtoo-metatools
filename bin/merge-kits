@@ -133,7 +133,7 @@ if __name__ == "__main__":
 		merge.model.PUSH = False
 		merge.model.MIRROR = False
 		merge.model.META_REPO = meta_repo = merge.model.GIT_CLASS(
-			name="meta-repo", branch=merge.model.RELEASE, root=merge.model.MERGE_CONFIG.dest_trees + "/meta-repo"
+			name="meta-repo", branch=merge.model.RELEASE, root=merge.model.MERGE_CONFIG.dest_trees + "/meta-repo", fixup_origin=merge.model.MERGE_CONFIG.destination_base_url
 		)
 		merge.model.NEST_KITS = True
 	else:
@@ -151,7 +151,6 @@ if __name__ == "__main__":
 			kwargs["mirror"] = merge.model.MERGE_CONFIG.mirror.rstrip("/") + "/meta-repo"
 		merge.model.CREATE_BRANCHES = hub.OPT.create_branches
 		kwargs["create_branches"] = True if hub.OPT.create_branches else False
-
 		merge.model.META_REPO = meta_repo = merge.tree.GitTree(
 			"meta-repo",
 			branch=merge.model.RELEASE,
