@@ -159,9 +159,6 @@ if __name__ == "__main__":
 			origin_check=True,
 			**kwargs,
 		)
-	# TODO: remove
-	assert merge.model.PUSH is True
-
 	merge.model.START_TIME = datetime.utcnow()
 	merge.model.FIXUP_REPO = merge.tree.GitTree(
 		"kit-fixups",
