@@ -130,7 +130,7 @@ if __name__ == "__main__":
 		# This means we'll just generate our own local git trees for the purposes of generating kits. This is generally used by developers to see what
 		# would end up in kits, when you don't really need to create any kits that will be used anywhere else.
 		merge.model.GIT_CLASS = merge.tree.AutoCreatedGitTree
-		merge.model.PUSH = False
+		merge.model.PUSH = True if merge.model.MERGE_CONFIG.destination_base_url else False
 		merge.model.MIRROR = False
 		merge.model.META_REPO = meta_repo = merge.model.GIT_CLASS(
 			name="meta-repo", branch=merge.model.RELEASE, root=merge.model.MERGE_CONFIG.dest_trees + "/meta-repo", fixup_origin=merge.model.MERGE_CONFIG.destination_base_url
@@ -159,6 +159,8 @@ if __name__ == "__main__":
 			origin_check=True,
 			**kwargs,
 		)
+	# TODO: remove
+	assert merge.model.PUSH is True
 
 	merge.model.START_TIME = datetime.utcnow()
 	merge.model.FIXUP_REPO = merge.tree.GitTree(
