@@ -249,15 +249,23 @@ class AutoCreatedGitTree(Tree):
 			origin_exists = run(f"(cd {self.root} && git config remote.origin.url)")
 			if origin_exists.returncode == 0:
 				origin = origin_exists.stdout.strip()
-				if origin != self.fixup_origin:
-					origin_set = run(f"(cd {self.root} && git remote set-url origin {self.fixup_origin.format(repo=self.name)})")
+				if origin != self.origin_fixup:
+					origin_set = run(f"(cd {self.root} && git remote set-url origin {self.origin_fixup})")
 					if origin_set.returncode != 0:
 						raise GitTreeError(f"Unable to fixup origin: {origin_set.stderr}")
 			else:
-				origin_set = run(f"(cd {self.root} && git remote add origin {self.fixup_origin.format(repo=self.name)})")
+				origin_set = run(f"(cd {self.root} && git remote add origin {self.origin_fixup})")
 				if origin_set.returncode != 0:
 					raise GitTreeError(f"Unable to add origin: {origin_set.stderr}")
 		self.initialized = True
+
+	@property
+	def origin_fixup(self):
+		return self.fixup_origin.rstrip("/") + f"/{self.name}"
+
+	def mirrorLocalBranches(self):
+		# This is a special push command that will push local tags and branches *only*
+		run_shell(f"(cd {self.root} && git push {self.origin_fixup} +refs/heads/* +refs/tags/*)")
 
 
 class GitTree(Tree):
