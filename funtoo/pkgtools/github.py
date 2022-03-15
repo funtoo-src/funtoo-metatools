@@ -92,18 +92,18 @@ async def release_gen(hub, github_user, github_repo, release_data=None, tarball=
 		# Have most recent by version at the beginning:
 		versions_and_release_elements = sorted(versions_and_release_elements, key=lambda v: packaging.version.parse(v[0]), reverse=True)
 
-	version, release = versions_and_release_elements[0]
-
 	if tarball:
-		# We are looking for a specific tarball:
-		archive_name = tarball.format(version=version)
-		for asset in release['assets']:
-			if asset['name'] == archive_name:
-				return {
-					"version": version,
-					"artifacts": [hub.pkgtools.ebuild.Artifact(url=asset['browser_download_url'], final_name=archive_name)]
-				}
+		for version, release in versions_and_release_elements:
+			# We are looking for a specific tarball:
+			archive_name = tarball.format(version=version)
+			for asset in release['assets']:
+				if asset['name'] == archive_name:
+					return {
+						"version": version,
+						"artifacts": [hub.pkgtools.ebuild.Artifact(url=asset['browser_download_url'], final_name=archive_name)]
+					}
 	else:
+		version, release = versions_and_release_elements[0]
 		# We want to grab the default tarball for the associated tag:
 		desired_tag = release['tag_name']
 		tag_data = await hub.pkgtools.fetch.get_page(f"https://api.github.com/repos/{github_user}/{github_repo}/tags", is_json=True)
