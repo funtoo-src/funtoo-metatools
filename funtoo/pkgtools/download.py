@@ -270,12 +270,14 @@ def cleanup(artifact):
 
 
 def extract(artifact):
-	# TODO: maybe refactor these next 2 lines
 	if not artifact.exists:
 		artifact.fetch()
-	ep = extract_path(artifact)
+	ep = self.extract_path
 	os.makedirs(ep, exist_ok=True)
-	cmd = "tar -C %s -xf %s" % (ep, artifact.final_path)
+	if artifact.final_name.endswith(".zip"):
+		cmd = f"unzip {ep} -d {artifact.final_path}"
+	else:
+		cmd = f"tar -C {ep} -xf {artifact.final_path}"
 	s, o = getstatusoutput(cmd)
 	if s != 0:
 		raise pkgtools.ebuild.BreezyError("Command failure: %s" % cmd)
