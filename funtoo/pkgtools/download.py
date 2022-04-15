@@ -272,7 +272,7 @@ def cleanup(artifact):
 def extract(artifact):
 	if not artifact.exists:
 		artifact.fetch()
-	ep = self.extract_path
+	ep = artifact.extract_path
 	os.makedirs(ep, exist_ok=True)
 	if artifact.final_name.endswith(".zip"):
 		cmd = f"unzip {ep} -d {artifact.final_path}"
