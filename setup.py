@@ -32,6 +32,7 @@ setuptools.setup(
 		"psutil",
 		"pymongo",
 		"PyYAML",
+		"rich",
 		"toml",
 		"xmltodict",
 		"colorama",

@@ -5,12 +5,11 @@ import os
 import random
 import string
 import threading
-from asyncio import Semaphore
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 import httpx
+import rich.progress
 
 log = logging.getLogger('metatools.autogen')
 
@@ -33,6 +32,12 @@ class FetchRequest:
 	def hostname(self):
 		parsed_url = urlparse(self.url)
 		return parsed_url.hostname
+
+	@property
+	def filename(self):
+		parsed_url = urlparse(self.url)
+		return parsed_url.path.split("/")[-1]
+
 
 	def set_auth(self, username=None, password=None):
 		self.username = username
@@ -118,8 +123,7 @@ class Download:
 		Also note that this method will now raise FetchError if it truly fails, though it also will capture some error
 		conditions internally do to proper robustifying of downloads and handle common download failure conditions itself.
 		"""
-		hostname = self.request.hostname
-		semi = await self.spider.acquire_host_semaphore(hostname)
+		client = await self.spider.acquire_http_client(self.request)
 		rec_bytes = 0
 		attempts = 0
 		if self.request.retry:
@@ -128,32 +132,40 @@ class Download:
 			max_attempts = 1
 		completed = False
 
-		async with semi:
-			while not completed and attempts < max_attempts:
-				try:
-					async with httpx.AsyncClient() as client:
-						headers, auth = self.spider.get_headers_and_auth(self.request)
-						async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True, timeout=12) as response:
-							if response.status_code not in [200, 206]:
-								if response.status_code in [400, 404, 410]:
-									# These are legitimate responses that indicate that the file does not exist. Therefore, we
-									# should not retry, as we should expect to get the same result.
-									retry = False
-								else:
-									retry = True
-								raise FetchError(self.request, f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
-							async for chunk in response.aiter_raw():
-								rec_bytes += len(chunk)
-								on_chunk(chunk)
-							completed = True
-				except httpx.RequestError as e:
-					log.error(f"Download failure for {self.request.url}: {str(e)}")
-					if attempts + 1 < max_attempts:
-						attempts += 1
-						log.warning(f"Retrying after download failure... {str(e)}")
-						continue
+		while not completed and attempts < max_attempts:
+			try:
+				async with client.stream("GET", url=self.request.url, follow_redirects=True) as response:
+					if response.status_code not in [200, 206]:
+						if response.status_code in [400, 404, 410]:
+							# These are legitimate responses that indicate that the file does not exist. Therefore, we
+							# should not retry, as we should expect to get the same result.
+							retry = False
+						else:
+							retry = True
+						raise FetchError(self.request, f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
+					if "Content-Length" in response.headers:
+						total = int(response.headers["Content-Length"])
+						download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=total)
 					else:
-						raise FetchError(self.request, f"{e.__class__.__name__}: {str(e)}")
+						total = None
+						download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=0)
+					async for chunk in response.aiter_raw():
+						rec_bytes += response.num_bytes_downloaded
+						on_chunk(chunk)
+						if total:
+							self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
+						else:
+							self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
+					self.spider.progress.remove_task(download_task)
+					completed = True
+			except httpx.RequestError as e:
+				log.error(f"Download failure for {self.request.url}: {str(e)}")
+				if attempts + 1 < max_attempts:
+					attempts += 1
+					log.warning(f"Retrying after download failure... {str(e)}")
+					continue
+				else:
+					raise FetchError(self.request, f"{e.__class__.__name__}: {str(e)}")
 
 	async def launch(self) -> None:
 		"""
@@ -169,7 +181,8 @@ class Download:
 
 		log.debug(f"WebSpider.launch:{threading.get_ident()} spidering {self.request.url}...")
 		os.makedirs(os.path.dirname(self.temp_path), exist_ok=True)
-		log.info(f"Spidering {self.request.url}")
+		if not self.spider.rich:
+			log.info(f"Spidering {self.request.url}")
 		fd = open(self.temp_path, "wb")
 		hashes = {}
 
@@ -267,23 +280,41 @@ class WebSpider:
 	DL_ACTIVE_LOCK = threading.Lock()
 	DL_ACTIVE = dict()
 	DOWNLOAD_SLOT = threading.Semaphore(value=20)
-	thread_ctx = threading.local()
 	fetch_headers = {"User-Agent": "funtoo-metatools (support@funtoo.org)"}
 	status_logger_task = None
 	keep_running = True
+	thread_ctx = threading.local()
 
 	def __init__(self, temp_path, hashes):
 		self.temp_path = temp_path
 		self.hashes = hashes - {'size'}
+		self.rich = True
+		self.progress = rich.progress.Progress(
+				"[progress.percentage]{task.percentage:>3.0f}%",
+				rich.progress.TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
+				rich.progress.BarColumn(bar_width=None),
+				rich.progress.DownloadColumn(),
+				rich.progress.TransferSpeedColumn()
+		)
+		self.progress.start()
+
+	@property
+	def http_clients(self):
+		http_clients = getattr(self.thread_ctx, "http_clients", None)
+		if http_clients is None:
+			http_clients = self.thread_ctx.http_clients = {}
+		return http_clients
 
 	async def status_logger(self):
 		while self.keep_running:
 			await asyncio.sleep(0.1)
 			dl_count = len(self.DL_ACTIVE)
-			if dl_count > 1:
-				log.info(f"Spider active downloads: {len(self.DL_ACTIVE)}")
-			elif dl_count == 1:
-				log.info(f"Spider active download: {list(self.DL_ACTIVE.keys())[0]}")
+			if not self.rich:
+				if dl_count > 1:
+					log.info(f"Spider active downloads: {len(self.DL_ACTIVE)}")
+				elif dl_count == 1:
+					log.info(f"Spider active download: {list(self.DL_ACTIVE.keys())[0]}")
+		self.progress.stop()
 		log.info("Status logger done.")
 
 	async def start_asyncio_tasks(self):
@@ -364,11 +395,13 @@ class WebSpider:
 				# FL-8301: address possible race condition
 				pass
 
-	async def acquire_host_semaphore(self, hostname):
-		semaphores = getattr(self.thread_ctx, "http_semaphores", None)
-		if semaphores is None:
-			semaphores = self.thread_ctx.http_semaphores = defaultdict(lambda: Semaphore(value=8))
-		return semaphores[hostname]
+	async def acquire_http_client(self, request):
+		if request.hostname not in self.http_clients:
+			headers, auth = self.get_headers_and_auth(request)
+			client = self.http_clients[request.hostname] = httpx.AsyncClient(base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
+			return client
+		else:
+			return self.http_clients[request.hostname]
 
 	def get_headers_and_auth(self, request):
 		headers = self.fetch_headers.copy()
@@ -393,30 +426,28 @@ class WebSpider:
 		This method *will* return a FetchError if there was some kind of fetch failure, and this is used by the 'fetch cache'
 		so this is important.
 		"""
-		semi = await self.acquire_host_semaphore(request.hostname)
-
+		http_client = await self.acquire_http_client(request)
+		# TODO: add code to explicitly close all clients, above:
 		try:
-			async with semi:
-				async with httpx.AsyncClient() as client:
-					log.debug(f'Fetching data from {request.url}')
-					headers, auth = self.get_headers_and_auth(request)
-					response = await client.get(request.url, headers=headers, auth=auth, follow_redirects=True, timeout=8)
-					if response.status_code != 200:
-						if response.status_code in [400, 404, 410]:
-							# No need to retry as the server has just told us that the resource does not exist.
-							retry = False
-						else:
-							retry = True
-						log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase[:40]}")
-						raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase[:40]}", retry=retry)
-					if is_json:
-						return response.json()
-					if encoding:
-						result = response.content.decode(encoding)
-					else:
-						result = response.text
-					log.info(f'Fetched {request.url} {len(result)} bytes')
-					return result
+			log.debug(f'Fetching data from {request.url}')
+			headers, auth = self.get_headers_and_auth(request)
+			response = await http_client.get(request.url, headers=headers, auth=auth, follow_redirects=True, timeout=8)
+			if response.status_code != 200:
+				if response.status_code in [400, 404, 410]:
+					# No need to retry as the server has just told us that the resource does not exist.
+					retry = False
+				else:
+					retry = True
+				log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase[:40]}")
+				raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase[:40]}", retry=retry)
+			if is_json:
+				return response.json()
+			if encoding:
+				result = response.content.decode(encoding)
+			else:
+				result = response.text
+			log.info(f'Fetched {request.url} {len(result)} bytes')
+			return result
 		except httpx.RequestError as re:
 			raise FetchError(request, f"Could not connect to {request.url}: {repr(re)}", retry=False)
 
