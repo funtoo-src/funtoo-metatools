@@ -398,7 +398,8 @@ class WebSpider:
 	async def acquire_http_client(self, request):
 		if request.hostname not in self.http_clients:
 			headers, auth = self.get_headers_and_auth(request)
-			client = self.http_clients[request.hostname] = httpx.AsyncClient(http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
+			limits = httpx.Limits(keepalive_expiry=30, max_keepalive_connections=24, max_connections=24)
+			client = self.http_clients[request.hostname] = httpx.AsyncClient(limits=limits, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
 			return client
 		else:
 			return self.http_clients[request.hostname]
