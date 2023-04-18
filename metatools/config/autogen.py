@@ -51,8 +51,6 @@ class StoreSpiderConfig(StoreConfig):
 	async def initialize(self, fastpull_scope=None, debug=False):
 		self.spider = WebSpider(os.path.join(self.temp_path, "spider"), hashes=self.hashes)
 		await super().initialize(fastpull_scope=fastpull_scope, debug=debug)
-		# This turns on periodic logging of active downloads (to get rid of 'dots')
-		await self.spider.start_asyncio_tasks()
 
 
 class AutogenConfig(StoreSpiderConfig):

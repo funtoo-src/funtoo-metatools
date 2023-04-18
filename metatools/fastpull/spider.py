@@ -287,7 +287,8 @@ class WebSpider:
 	status_logger_task = None
 	keep_running = True
 	thread_ctx = threading.local()
-	transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0", retries=3)
+	transport = None
+	started = None
 
 	def __init__(self, temp_path, hashes):
 		self.temp_path = temp_path
@@ -300,7 +301,7 @@ class WebSpider:
 				rich.progress.DownloadColumn(),
 				rich.progress.TransferSpeedColumn()
 		)
-		self.progress.start()
+
 
 	@property
 	def http_clients(self):
@@ -324,7 +325,17 @@ class WebSpider:
 	async def start_asyncio_tasks(self):
 		self.status_logger_task = asyncio.Task(self.status_logger())
 
+	async def start(self):
+		if self.started:
+			return
+		# This turns on periodic logging of active downloads (to get rid of 'dots')
+		self.progress.start()
+		await self.start_asyncio_tasks()
+		self.transport = httpx.AsyncHTTPTransport(retries=3, local_address="0.0.0.0")
+
 	async def stop(self):
+		if not self.started:
+			return
 		self.keep_running = False
 		self.status_logger_task.cancel()
 		try:
@@ -347,6 +358,8 @@ class WebSpider:
 			pass
 
 	async def download(self, request: FetchRequest, completion_pipeline=None):
+		if not self.started:
+			await self.start()
 
 		"""
 		This method attempts to start a download. It is what users of the spider should call, and will take into
