@@ -133,6 +133,7 @@ class Download:
 		completed = False
 
 		while not completed and attempts < max_attempts:
+			download_task = None
 			try:
 				async with client.stream("GET", url=self.request.url, follow_redirects=True) as response:
 					if response.status_code not in [200, 206]:
@@ -159,6 +160,8 @@ class Download:
 					self.spider.progress.remove_task(download_task)
 					completed = True
 			except httpx.RequestError as e:
+				if download_task:
+					self.spider.progress.remove_task(download_task)
 				log.error(f"Download failure for {self.request.url}: {str(e)}")
 				if attempts + 1 < max_attempts:
 					attempts += 1
@@ -284,6 +287,7 @@ class WebSpider:
 	status_logger_task = None
 	keep_running = True
 	thread_ctx = threading.local()
+	transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0", retries=3)
 
 	def __init__(self, temp_path, hashes):
 		self.temp_path = temp_path
@@ -399,7 +403,7 @@ class WebSpider:
 		if request.hostname not in self.http_clients:
 			headers, auth = self.get_headers_and_auth(request)
 			limits = httpx.Limits(keepalive_expiry=30, max_keepalive_connections=24, max_connections=24)
-			client = self.http_clients[request.hostname] = httpx.AsyncClient(limits=limits, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
+			client = self.http_clients[request.hostname] = httpx.AsyncClient(transport=self.transport, limits=limits, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
 			return client
 		else:
 			return self.http_clients[request.hostname]
