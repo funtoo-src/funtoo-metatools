@@ -293,6 +293,7 @@ class WebSpider:
 	limits = httpx.Limits(keepalive_expiry=30, max_keepalive_connections=24, max_connections=24)
 
 	def __init__(self, temp_path, hashes):
+		self.fetch_count = 0
 		self.temp_path = temp_path
 		self.hashes = hashes - {'size'}
 		self.rich = True
@@ -415,7 +416,7 @@ class WebSpider:
 				pass
 
 	async def acquire_http_client(self, request):
-		log.info(f"acquire_http_client: count: {len(self.http_clients)} (request for {request.hostname}) SLOT: {self.FETCH_SLOT._value}")
+		log.info(f"acquire_http_client: count: {len(self.http_clients)} (request for {request.hostname}) SLOT: {self.FETCH_SLOT._value} count: {self.fetch_count}")
 		if request.hostname not in self.http_clients:
 			headers, auth = self.get_headers_and_auth(request)
 			client = self.http_clients[request.hostname] = httpx.AsyncClient(transport=self.transport, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
@@ -511,6 +512,8 @@ class WebSpider:
 					await asyncio.sleep(0.1)
 					logging.info("WAITING ON SLOT")
 					continue
+				else:
+					self.fetch_count += 1
 				yield
 				break
 		finally:
