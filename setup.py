@@ -26,7 +26,7 @@ setuptools.setup(
 		"subpop >= 2.0.0",
 		"beautifulsoup4",
 		"dict_toolbox",
-		"httpx",
+		"httpx[http2]",
 		"Jinja2 >= 3",
 		"packaging",
 		"psutil",

@@ -592,7 +592,7 @@ async def execute_all_queued_generators():
 	futures = []
 	loop = asyncio.get_running_loop()
 	all_failures = []
-	with ThreadPoolExecutor(max_workers=16) as executor:
+	with ThreadPoolExecutor(max_workers=24) as executor:
 		while len(PENDING_QUE):
 			task_args = PENDING_QUE.pop(0)
 

@@ -398,7 +398,7 @@ class WebSpider:
 	async def acquire_http_client(self, request):
 		if request.hostname not in self.http_clients:
 			headers, auth = self.get_headers_and_auth(request)
-			client = self.http_clients[request.hostname] = httpx.AsyncClient(base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
+			client = self.http_clients[request.hostname] = httpx.AsyncClient(http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
 			return client
 		else:
 			return self.http_clients[request.hostname]
@@ -431,7 +431,7 @@ class WebSpider:
 		try:
 			log.debug(f'Fetching data from {request.url}')
 			headers, auth = self.get_headers_and_auth(request)
-			response = await http_client.get(request.url, headers=headers, auth=auth, follow_redirects=True, timeout=8)
+			response = await http_client.get(request.url, headers=headers, auth=auth, follow_redirects=True, timeout=30)
 			if response.status_code != 200:
 				if response.status_code in [400, 404, 410]:
 					# No need to retry as the server has just told us that the resource does not exist.
