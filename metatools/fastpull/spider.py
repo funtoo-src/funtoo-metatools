@@ -289,6 +289,7 @@ class WebSpider:
 	thread_ctx = threading.local()
 	transport = None
 	started = None
+	limits = httpx.Limits(keepalive_expiry=30, max_keepalive_connections=24, max_connections=24)
 
 	def __init__(self, temp_path, hashes):
 		self.temp_path = temp_path
@@ -331,7 +332,7 @@ class WebSpider:
 		# This turns on periodic logging of active downloads (to get rid of 'dots')
 		self.progress.start()
 		await self.start_asyncio_tasks()
-		self.transport = httpx.AsyncHTTPTransport(retries=3, local_address="0.0.0.0")
+		self.transport = httpx.AsyncHTTPTransport(retries=3, local_address="0.0.0.0", limits=self.limits)
 
 	async def stop(self):
 		if not self.started:
@@ -413,10 +414,10 @@ class WebSpider:
 				pass
 
 	async def acquire_http_client(self, request):
+		log.info(f"acquire_http_client: count: {len(self.http_clients)} (request for {request.hostname})")
 		if request.hostname not in self.http_clients:
 			headers, auth = self.get_headers_and_auth(request)
-			limits = httpx.Limits(keepalive_expiry=30, max_keepalive_connections=24, max_connections=24)
-			client = self.http_clients[request.hostname] = httpx.AsyncClient(transport=self.transport, limits=limits, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
+			client = self.http_clients[request.hostname] = httpx.AsyncClient(transport=self.transport, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
 			return client
 		else:
 			return self.http_clients[request.hostname]
