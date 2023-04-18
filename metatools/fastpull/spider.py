@@ -283,6 +283,7 @@ class WebSpider:
 	DL_ACTIVE_LOCK = threading.Lock()
 	DL_ACTIVE = dict()
 	DOWNLOAD_SLOT = threading.Semaphore(value=20)
+	FETCH_SLOT = threading.Semaphore(value=20)
 	fetch_headers = {"User-Agent": "funtoo-metatools (support@funtoo.org)"}
 	status_logger_task = None
 	keep_running = True
@@ -414,7 +415,7 @@ class WebSpider:
 				pass
 
 	async def acquire_http_client(self, request):
-		log.info(f"acquire_http_client: count: {len(self.http_clients)} (request for {request.hostname})")
+		log.info(f"acquire_http_client: count: {len(self.http_clients)} (request for {request.hostname}) SLOT: {self.FETCH_SLOT._value}")
 		if request.hostname not in self.http_clients:
 			headers, auth = self.get_headers_and_auth(request)
 			client = self.http_clients[request.hostname] = httpx.AsyncClient(transport=self.transport, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)
@@ -445,30 +446,30 @@ class WebSpider:
 		This method *will* return a FetchError if there was some kind of fetch failure, and this is used by the 'fetch cache'
 		so this is important.
 		"""
-		http_client = await self.acquire_http_client(request)
-		# TODO: add code to explicitly close all clients, above:
-		try:
-			log.debug(f'Fetching data from {request.url}')
-			headers, auth = self.get_headers_and_auth(request)
-			response = await http_client.get(request.url, headers=headers, auth=auth, follow_redirects=True, timeout=30)
-			if response.status_code != 200:
-				if response.status_code in [400, 404, 410]:
-					# No need to retry as the server has just told us that the resource does not exist.
-					retry = False
+		async with self.acquire_fetch_slot():
+			http_client = await self.acquire_http_client(request)
+			# TODO: add code to explicitly close all clients, above:
+			try:
+				log.debug(f'Fetching data from {request.url}')
+				response = await http_client.get(request.url, follow_redirects=True, timeout=30)
+				if response.status_code != 200:
+					if response.status_code in [400, 404, 410]:
+						# No need to retry as the server has just told us that the resource does not exist.
+						retry = False
+					else:
+						retry = True
+					log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase[:40]}")
+					raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase[:40]}", retry=retry)
+				if is_json:
+					return response.json()
+				if encoding:
+					result = response.content.decode(encoding)
 				else:
-					retry = True
-				log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase[:40]}")
-				raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase[:40]}", retry=retry)
-			if is_json:
-				return response.json()
-			if encoding:
-				result = response.content.decode(encoding)
-			else:
-				result = response.text
-			log.info(f'Fetched {request.url} {len(result)} bytes')
-			return result
-		except httpx.RequestError as re:
-			raise FetchError(request, f"Could not connect to {request.url}: {repr(re)}", retry=False)
+					result = response.text
+				log.info(f'Fetched {request.url} {len(result)} bytes')
+				return result
+			except httpx.RequestError as re:
+				raise FetchError(request, f"Could not connect to {request.url}: {repr(re)}", retry=False)
 
 	@asynccontextmanager
 	async def acquire_download_slot(self):
@@ -494,11 +495,26 @@ class WebSpider:
 				success = self.DOWNLOAD_SLOT.acquire(blocking=False)
 				if not success:
 					await asyncio.sleep(0.1)
+					logging.info("WAITING ON SLOT")
 					continue
 				yield
 				break
 		finally:
 			self.DOWNLOAD_SLOT.release()
+
+	@asynccontextmanager
+	async def acquire_fetch_slot(self):
+		try:
+			while True:
+				success = self.FETCH_SLOT.acquire(blocking=False)
+				if not success:
+					await asyncio.sleep(0.1)
+					logging.info("WAITING ON SLOT")
+					continue
+				yield
+				break
+		finally:
+			self.FETCH_SLOT.release()
 
 	@asynccontextmanager
 	async def start_download(self, download):
@@ -525,7 +541,7 @@ class WebSpider:
 		"""
 		with self.DL_ACTIVE_LOCK:
 			if request.url in self.DL_ACTIVE:
-				log.debug(f"WebSpider.get_existing_download:{threading.get_ident()} found active download for {request.url}")
+				log.warn(f"WebSpider.get_existing_download:{threading.get_ident()} found active download for {request.url}")
 
 				return self.DL_ACTIVE[request.url]
 
