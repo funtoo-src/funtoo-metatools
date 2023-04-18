@@ -55,7 +55,6 @@ class StoreSpiderConfig(StoreConfig):
 		await self.spider.start_asyncio_tasks()
 
 
-
 class AutogenConfig(StoreSpiderConfig):
 	"""
 	This class is used for the autogen workflow -- i.e. the 'doit' command.

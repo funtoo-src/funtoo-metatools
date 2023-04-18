@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-
+import atexit
 import logging
 import os
 
@@ -31,6 +31,7 @@ class MinimalConfig(SubPopModel):
 			self.log.setLevel(logging.INFO)
 		handler = RichHandler(rich_tracebacks=True, show_path=False)
 		self.log.addHandler(handler)
+		atexit.register(lambda: print("\x1b[?25h"))
 		if debug:
 			self.log.warning("DEBUG enabled")
 		set_model(self.logger_name, self)
