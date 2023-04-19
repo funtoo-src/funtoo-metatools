@@ -41,19 +41,8 @@ async def get_page(url, encoding=None, is_json=False):
 
 
 async def get_url_from_redirect(url):
-	"""
-	This function will take a URL that redirects and grab what it redirects to. This is useful
-	for /download URLs that redirect to a tarball 'foo-1.3.2.tar.xz' that you want to download,
-	when you want to grab the '1.3.2' without downloading the file (yet).
-	"""
-	logging.info(f"Getting redirect URL from {url}...")
-	async with httpx.AsyncClient() as client:
-		try:
-			resp = await client.get(url=url, follow_redirects=False)
-			if resp.status_code == 302:
-				return resp.headers["location"]
-		except httpx.RequestError as e:
-			raise FetchError(url, f"Couldn't get_url_from_redirect due to exception {repr(e)}")
+	return await pkgtools.model.spider.get_url_from_redirect(url)
+
 
 
 async def get_response_headers(url):

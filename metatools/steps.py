@@ -192,6 +192,8 @@ class CopyFiles(MergeStep):
 	"""
 
 	def __init__(self, srctree, file_map_tuples):
+		if srctree is None:
+			raise ValueError("srctree can't be None")
 		self.srctree = srctree
 		self.file_map_tuples = file_map_tuples
 

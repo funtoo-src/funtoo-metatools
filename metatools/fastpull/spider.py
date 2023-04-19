@@ -328,6 +328,23 @@ class WebSpider:
 	async def start_asyncio_tasks(self):
 		self.status_logger_task = asyncio.Task(self.status_logger())
 
+	async def get_url_from_redirect(self, url):
+		"""
+		This function will take a URL that redirects and grab what it redirects to. This is useful
+		for /download URLs that redirect to a tarball 'foo-1.3.2.tar.xz' that you want to download,
+		when you want to grab the '1.3.2' without downloading the file (yet).
+		"""
+		request = FetchRequest(url=url)
+		logging.info(f"Getting redirect URL from {url}...")
+		client = await self.acquire_http_client(request)
+
+		try:
+			resp = await client.get(url=url, follow_redirects=False)
+			if resp.status_code == 302:
+				return resp.headers["location"]
+		except httpx.RequestError as e:
+			raise FetchError(url, f"Couldn't get_url_from_redirect due to exception {repr(e)}")
+
 	async def start(self):
 		if self.started:
 			return
