@@ -114,7 +114,7 @@ class Download:
 			self._temp_path = os.path.join(self.spider.temp_path, f"{rand_str}-{temp_name}")
 		return self._temp_path
 
-	async def _http_fetch_stream(self, on_chunk, chunk_size=262144):
+	async def _http_fetch_stream(self, on_chunk):
 		"""
 		This is a low-level streaming HTTP fetcher that will call on_chunk(bytes) for each chunk. On_chunk is called with
 		literal bytes from the response body so no decoding is performed. The final_data attribute still needs
@@ -124,6 +124,8 @@ class Download:
 		conditions internally do to proper robustifying of downloads and handle common download failure conditions itself.
 		"""
 		client = await self.spider.acquire_http_client(self.request)
+		headers, auth = self.spider.get_headers_and_auth(self.request)
+
 		rec_bytes = 0
 		attempts = 0
 		if self.request.retry:
@@ -135,7 +137,7 @@ class Download:
 		while not completed and attempts < max_attempts:
 			download_task = None
 			try:
-				async with client.stream("GET", url=self.request.url, follow_redirects=True) as response:
+				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					if response.status_code not in [200, 206]:
 						if response.status_code in [400, 404, 410]:
 							# These are legitimate responses that indicate that the file does not exist. Therefore, we
@@ -470,18 +472,19 @@ class WebSpider:
 		"""
 		async with self.acquire_fetch_slot(request):
 			http_client = await self.acquire_http_client(request)
+			headers, auth = self.get_headers_and_auth(request)
 			# TODO: add code to explicitly close all clients, above:
 			try:
 				log.debug(f'Fetching data from {request.url}')
-				response = await http_client.get(request.url, follow_redirects=True, timeout=15)
+				response = await http_client.get(request.url, headers=headers, auth=auth, follow_redirects=True, timeout=15)
 				if response.status_code != 200:
 					if response.status_code in [400, 404, 410]:
 						# No need to retry as the server has just told us that the resource does not exist.
 						retry = False
 					else:
 						retry = True
-					log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase[:40]}")
-					raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase[:40]}", retry=retry)
+					log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase} {response.json}")
+					raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase} {response.json}", retry=retry)
 				if is_json:
 					return response.json()
 				if encoding:
