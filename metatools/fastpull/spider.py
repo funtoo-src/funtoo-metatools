@@ -150,7 +150,8 @@ class Download:
 					else:
 						total = None
 						download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=0)
-					async for chunk in response.aiter_raw():
+					# DO NOT USE aiter_raw(), below!! It will result in invalid downloads from some sites!
+					async for chunk in response.aiter_bytes():
 						rec_bytes += response.num_bytes_downloaded
 						on_chunk(chunk)
 						if total:
