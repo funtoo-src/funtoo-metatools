@@ -172,7 +172,7 @@ class Download:
 					break
 
 		if not completed:
-			raise FetchError(self.request, f"{e.__class__.__name__}: {str(e)}")
+			raise FetchError(self.request, "http_fetch_stream failure")
 
 	async def launch(self) -> None:
 		"""
