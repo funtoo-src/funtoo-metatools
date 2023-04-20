@@ -168,6 +168,8 @@ class Download:
 					attempts += 1
 					log.warning(f"Retrying after download failure... {str(e)}")
 					continue
+				else:
+					break
 
 		if not completed:
 			raise FetchError(self.request, f"{e.__class__.__name__}: {str(e)}")
