@@ -168,8 +168,9 @@ class Download:
 					attempts += 1
 					log.warning(f"Retrying after download failure... {str(e)}")
 					continue
-				else:
-					raise FetchError(self.request, f"{e.__class__.__name__}: {str(e)}")
+
+		if not completed:
+			raise FetchError(self.request, f"{e.__class__.__name__}: {str(e)}")
 
 	async def launch(self) -> None:
 		"""
