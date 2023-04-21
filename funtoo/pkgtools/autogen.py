@@ -608,12 +608,8 @@ async def execute_all_queued_generators():
 	all_fails = pkgtools.ebuild.aggregate(results)
 	all_fails += pkgtools.ebuild.aggregate(failures)
 	all_failures += all_fails
-	# This will remove all duplicates
-	all_fail_set = sorted(list(set(all_failures)))
-	if len(all_fail_set) != len(all_failures):
-		# TODO: this duplicate failure issue is an ongoing, unresolved bug.
-		pkgtools.model.log.error(f"Number of failures ({len(all_failures)} had duplicates.")
-	return sorted(list(set(all_failures)))
+
+	return all_failures
 
 
 async def start():
@@ -659,11 +655,18 @@ async def start():
 		pkgtools.model.log.error(f"Autogen failed (count: {len(fail_list)}).")
 		extra_info = []
 		if len(fail_list):
+
 			for fail in fail_list:
 				fail_info = getattr(fail, 'info', None)
 				if fail_info:
 					extra_info.append(fail_info)
 		if len(extra_info):
+			# This will remove all duplicates
+			extra_info_dedup = sorted(list(set(extra_info)))
+			if len(extra_info_dedup) != len(extra_info):
+				# TODO: this duplicate failure issue is an ongoing, unresolved bug.
+				pkgtools.model.log.error(
+					f"Number of failures ({len(extra_info)}) had duplicates {len(extra_info) - len(extra_info_dedup)})")
 			pkgtools.model.log.error(f"Errors were encountered when processing the following autogens:")
 			for fail in extra_info:
 				pkgtools.model.log.error(f" * {fail}")
