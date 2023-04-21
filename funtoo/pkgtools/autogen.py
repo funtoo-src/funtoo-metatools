@@ -608,7 +608,12 @@ async def execute_all_queued_generators():
 	all_fails = pkgtools.ebuild.aggregate(results)
 	all_fails += pkgtools.ebuild.aggregate(failures)
 	all_failures += all_fails
-	return all_failures
+	# This will remove all duplicates
+	all_fail_set = sorted(list(set(all_failures)))
+	if len(all_fail_set) != len(all_failures):
+		# TODO: this duplicate failure issue is an ongoing, unresolved bug.
+		pkgtools.model.log.error(f"Number of failures ({len(all_failures)} had duplicates.")
+	return sorted(list(set(all_failures)))
 
 
 async def start():

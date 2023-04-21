@@ -6,6 +6,7 @@ import random
 import string
 import threading
 from contextlib import asynccontextmanager
+from datetime import timedelta, datetime
 from urllib.parse import urlparse
 from collections import defaultdict
 import httpx
@@ -134,9 +135,12 @@ class Download:
 			max_attempts = 1
 		completed = False
 
+		display_download = False
+
 		while not completed and attempts < max_attempts:
 			download_task = None
 			try:
+				start_time = datetime.utcnow()
 				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					if response.status_code not in [200, 206]:
 						if response.status_code in [400, 404, 410]:
@@ -146,12 +150,14 @@ class Download:
 						else:
 							retry = True
 						raise FetchError(self.request, f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
-					if "Content-Length" in response.headers:
-						total = int(response.headers["Content-Length"])
-						download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=total)
-					else:
-						total = None
-						download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=0)
+					if download_task is None and datetime.utcnow() - start_time > timedelta(seconds=2):
+						# Only start download progress display if the download takae a minimum # of seconds...
+						if "Content-Length" in response.headers:
+							total = int(response.headers["Content-Length"])
+							download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=total)
+						else:
+							total = None
+							download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=0)
 					# DO NOT USE aiter_raw(), below!! It will result in invalid downloads from some sites!
 					async for chunk in response.aiter_bytes():
 						rec_bytes += response.num_bytes_downloaded
