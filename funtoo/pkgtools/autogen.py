@@ -7,7 +7,6 @@ import threading
 import subprocess
 from asyncio import FIRST_EXCEPTION, Task
 from collections import defaultdict
-from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Tuple, List
 
 import dyne.org.funtoo.metatools.pkgtools as pkgtools
@@ -670,6 +669,7 @@ async def start():
 			pkgtools.model.log.error(f"Errors were encountered when processing the following autogens:")
 			for fail in extra_info:
 				pkgtools.model.log.error(f" * {fail}")
+			pkgtools.model.log.error(f"End of report.")
 		return False
 
 # vim: ts=4 sw=4 noet
