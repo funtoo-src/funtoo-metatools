@@ -166,8 +166,9 @@ class Download:
 								self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
 							else:
 								self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
-					self.spider.progress.remove_task(download_task)
-					download_task = None
+					if download_task:
+						self.spider.progress.remove_task(download_task)
+						download_task = None
 					completed = True
 			except httpx.RequestError as e:
 				if download_task:
