@@ -161,10 +161,11 @@ class Download:
 					async for chunk in response.aiter_bytes():
 						rec_bytes += response.num_bytes_downloaded
 						on_chunk(chunk)
-						if total:
-							self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
-						else:
-							self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
+						if download_task:
+							if total:
+								self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
+							else:
+								self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
 					self.spider.progress.remove_task(download_task)
 					download_task = None
 					completed = True
