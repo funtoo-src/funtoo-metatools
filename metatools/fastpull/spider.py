@@ -161,10 +161,12 @@ class Download:
 						else:
 							self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
 					self.spider.progress.remove_task(download_task)
+					download_task = None
 					completed = True
 			except httpx.RequestError as e:
 				if download_task:
 					self.spider.progress.remove_task(download_task)
+					download_task = None
 				log.error(f"Download failure for {self.request.url}: {str(e)}")
 				if attempts + 1 < max_attempts:
 					attempts += 1
@@ -172,6 +174,9 @@ class Download:
 					continue
 				else:
 					break
+			finally:
+				if download_task:
+					self.spider.progress.remove_task(download_task)
 
 		if not completed:
 			raise FetchError(self.request, "http_fetch_stream failure")
