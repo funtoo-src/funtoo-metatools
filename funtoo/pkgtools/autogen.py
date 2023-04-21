@@ -590,7 +590,6 @@ def queue_all_yaml_autogens(files=None):
 
 async def execute_all_queued_generators():
 	futures = []
-	loop = asyncio.get_running_loop()
 	all_failures = []
 	while len(PENDING_QUE):
 		task_args = PENDING_QUE.pop(0)

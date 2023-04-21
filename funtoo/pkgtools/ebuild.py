@@ -521,9 +521,12 @@ class BreezyBuild:
 			for fail_task in failures:
 				logging.exception("Fetch exception", exc_info=fail_task.exception())
 			raise BreezyError("Fetch exceptions encountered.")
+		fetch_fail = False
 		for artifact, status in completion_list:
 			if status is False:
 				log.error(f"Artifact for url {artifact.url} referenced in {artifact.catpkgs} could not be fetched.")
+				fetch_fail = True
+		raise BreezyError("Unable to fetch at least one artifact.")
 
 	def push(self):
 		#
