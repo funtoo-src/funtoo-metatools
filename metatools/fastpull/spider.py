@@ -135,9 +135,8 @@ class Download:
 			max_attempts = 1
 		completed = False
 
-		display_download = False
-
 		while not completed and attempts < max_attempts:
+			total = None
 			download_task = None
 			try:
 				start_time = datetime.utcnow()
@@ -151,7 +150,7 @@ class Download:
 							retry = True
 						raise FetchError(self.request, f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
 					if download_task is None and datetime.utcnow() - start_time > timedelta(seconds=2):
-						# Only start download progress display if the download takae a minimum # of seconds...
+						# Only start download progress display if the download takes a minimum # of seconds...
 						if "Content-Length" in response.headers:
 							total = int(response.headers["Content-Length"])
 							download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=total)
