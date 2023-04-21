@@ -526,7 +526,8 @@ class BreezyBuild:
 			if status is False:
 				log.error(f"Artifact for url {artifact.url} referenced in {artifact.catpkgs} could not be fetched.")
 				fetch_fail = True
-		raise BreezyError("Unable to fetch at least one artifact.")
+		if fetch_fail:
+			raise BreezyError("Unable to fetch at least one artifact.")
 
 	def push(self):
 		#
