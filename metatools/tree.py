@@ -114,7 +114,7 @@ class Tree:
 
 	def cleanTree(self):
 		self.log.info("Cleaning tree %s" % self.root)
-		self.run_shell("(cd %s &&  git reset --hard && git clean -fdx )" % self.root)
+		self.run_shell(f"(cd {self.root} && git reset --hard && git clean -fdx )")
 		self.autogenned = False
 
 	def getDepthOfCommit(self, sha1):
