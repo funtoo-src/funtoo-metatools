@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import re
+from datetime import timedelta
 
 from metatools.fastpull.spider import FetchError
 from metatools.fetch_cache import CacheMiss
@@ -43,6 +44,8 @@ async def fetch_harness(fetch_method, url, max_age=None, refresh_interval=None, 
 			# by default unless overridden by the doit --immediate option, or if there was an explicit refresh interval passed
 			# to this function.
 			refresh_interval = pkgtools.model.fetch_cache_interval
+		else:
+			refresh_interval = timedelta(minutes=15)
 
 	# This may have "is_json", "encoding":
 	key_dict = kwargs.copy()

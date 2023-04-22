@@ -473,6 +473,8 @@ class WebSpider:
 
 	async def http_fetch(self, request: FetchRequest, is_json=False, encoding=None) -> str:
 		"""
+		UBER-NOTE:
+
 		This is a non-streaming HTTP fetcher that will properly convert the request to a Python string and return the entire
 		content as a string.
 
@@ -481,6 +483,48 @@ class WebSpider:
 
 		This method *will* return a FetchError if there was some kind of fetch failure, and this is used by the 'fetch cache'
 		so this is important.
+
+		NEW IMPLEMENTATION of basic HTTP resource fetch:
+
+		We always want to store the "Last-Modified" response header, which contains a date to compare against.
+		We then want to always send "If-Modified-Since" with this date, when requesting the resource again, and if
+		we get a 304 back, we should just use the cached resource. If we get a 200, we should update the resource.
+		This means that for every request, we should intentionally look in our fetch cache first, and see if we have
+		a resource with a "Last-Modified" header. And if we do, we use this in our request, and potentially we return
+		the entry from our fetch cache.
+
+		ETag should also be used, which will use an "If-None-Match: "etag"" request header and similarly return a 304.
+
+		We should try to have our API hit the fetch cache only once.
+
+		In addition to this, metatools has its own built-in fetch_harness() which applies a level of caching, using
+		refresh_interval. Technically, this isn't a "cache" but just a default setting for how "fresh" we need something
+		to be for us to use it. By default, the refresh_interval is set to 15 minutes. (HOWEVER, IT LOOKS LIKE WE HAVE
+		A BUG WHERE THIS DEFAULTS to ZERO).
+
+		In addition to all this, we also have a 3-time-retry-the-fetch feature, which helps with flaky network and
+		intermittent Internet connectivity issues. Plus the ability to fall back to the cached resource if the fetch failed. In
+		this case, we are intentionally using a stale resource just for the sake of getting the autogen to work, and
+		we want this -- but we also currently don't really log these in a good way, and especially for production
+		tree regen, we would not see these unless we had a way to create a report that ran at the end of autogen.
+		I have a bug open to try to fix this.
+
+		It would be really good to implement something new to fix all these things.
+
+		New logic:
+
+		first, determine if we already have the resource and we are within our fetch cache interval. If so, let's
+		just use the resource.
+
+		if we don't have the resource, obviously we don't have a cached version to use, so we need to fetch the
+		resource.
+
+		If we have a resource already but are outside of our cached interval, we should attempt to update the
+		resource, using ETag and Modified-Since if we have those cached too. We should make several attempts
+		to update the resource (3) -- and if everything fails, we can fall back and use the stale resource.
+		But hopefully we have an updated or re-checked resource. When the resource is re-checked, even if it is
+		not actually updated, we should update our "refreshed" date so it remains inside our "refresh interval"
+		for longer.
 		"""
 		async with self.acquire_fetch_slot(request):
 			http_client = await self.acquire_http_client(request)
