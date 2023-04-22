@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import asyncio
 import itertools
 import os
 import re
@@ -15,6 +15,15 @@ model = get_model("metatools.merge")
 
 def run_shell(cmd_list, abort_on_failure=True, chdir=None):
 	return metatools.tree.run_shell(cmd_list, abort_on_failure=abort_on_failure, chdir=chdir, logger=model.log)
+
+
+async def run_bg(cmd):
+	proc = await asyncio.create_subprocess_shell(cmd,
+	stdout=asyncio.subprocess.PIPE,
+	stderr=asyncio.subprocess.STDOUT)
+
+	stdout, stderr = await proc.communicate()
+	return proc, stdout
 
 
 class MergeStep:

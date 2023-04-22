@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import os
+import sys
 from datetime import timedelta
 
 from subpop.hub import Hub
@@ -66,10 +67,11 @@ async def main_thread():
 
 if __name__ == "__main__":
 	success = asyncio.run(main_thread())
+
 	if not success:
-		os._exit(1)
-	else:
-		os._exit(0)
+		sys.exit(1)
+	#	os._exit(1)
+	##	os._exit(0)
 
 # TODO: add 'facts' database concept to allow more resiliency on failures (fall back to cached facts from last
 #       successful run)

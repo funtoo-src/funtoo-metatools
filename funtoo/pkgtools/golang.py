@@ -50,7 +50,7 @@ async def create_gosum_archive(hub, pkginfo):
 	for artifact in module_artifacts:
 		shutil.copy(artifact.blos_object.blob.path, os.path.join(my_archive.top_path, artifact.final_name))
 
-	my_archive.store(key=gosum_bundle["key"])
+	await my_archive.store(key=gosum_bundle["key"])
 	return my_archive
 
 

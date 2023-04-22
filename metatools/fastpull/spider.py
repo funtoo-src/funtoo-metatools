@@ -5,10 +5,11 @@ import os
 import random
 import string
 import threading
-from contextlib import asynccontextmanager
-from datetime import timedelta, datetime
-from urllib.parse import urlparse
 from collections import defaultdict
+from contextlib import asynccontextmanager
+from datetime import datetime
+from urllib.parse import urlparse
+
 import httpx
 import rich.progress
 
@@ -17,7 +18,7 @@ log = logging.getLogger('metatools.autogen')
 
 class FetchRequest:
 
-	def __init__(self, url, retry=True, extra_headers=None, mirror_urls=None, username=None, password=None, expected_hashes=None):
+	def __init__(self, url, retry=True, extra_headers=None, mirror_urls=None, username=None, password=None, expected_hashes=None, final_name=None):
 		assert url is not None
 		self.url = url
 		self.retry = retry
@@ -28,6 +29,7 @@ class FetchRequest:
 		self.password = password
 		# TODO: this was a last-minute add to FetchRequest and we could possibly leverage this in the BLOS.
 		self.expected_hashes = expected_hashes if expected_hashes is not None else {}
+		self.final_name = final_name
 
 	@property
 	def hostname(self):
@@ -36,9 +38,11 @@ class FetchRequest:
 
 	@property
 	def filename(self):
-		parsed_url = urlparse(self.url)
-		return parsed_url.path.split("/")[-1]
-
+		if self.final_name:
+			return self.final_name
+		else:
+			parsed_url = urlparse(self.url)
+			return parsed_url.path.split("/")[-1]
 
 	def set_auth(self, username=None, password=None):
 		self.username = username
@@ -127,7 +131,6 @@ class Download:
 		client = await self.spider.acquire_http_client(self.request)
 		headers, auth = self.spider.get_headers_and_auth(self.request)
 
-		rec_bytes = 0
 		attempts = 0
 		if self.request.retry:
 			max_attempts = 3
@@ -160,13 +163,7 @@ class Download:
 							download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=0)
 					# DO NOT USE aiter_raw(), below!! It will result in invalid downloads from some sites!
 					async for chunk in response.aiter_bytes():
-						rec_bytes += response.num_bytes_downloaded
-						on_chunk(chunk)
-						if download_task:
-							if total:
-								self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
-							else:
-								self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
+						on_chunk(chunk, response, download_task, total)
 					if download_task:
 						self.spider.progress.remove_task(download_task)
 						download_task = None
@@ -211,11 +208,16 @@ class Download:
 		for h in self.hashes:
 			hashes[h] = getattr(hashlib, h)()
 
-		def on_chunk(chunk):
+		def on_chunk(chunk, response, download_task, total):
 			fd.write(chunk)
 			for hash in self.hashes:
 				hashes[hash].update(chunk)
 			self.filesize += len(chunk)
+			if download_task:
+				if total:
+					self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
+				else:
+					self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
 
 		try:
 			await self._http_fetch_stream(on_chunk)
@@ -230,14 +232,12 @@ class Download:
 		final_data['size'] = self.filesize
 		self.final_data = final_data
 
-		# TODO: Handle error 416, requested range not satisfiable. ^Z during download and resume seems to break our resume functionality.
-
 		if self.completion_pipeline:
 			# start by handing this Download object to the start of the pipeline:
 			completion_result = self
 			for completion_fn in self.completion_pipeline:
 				log.debug(f"Calling completion function {completion_fn} with argument {completion_result}")
-				completion_result = completion_fn(completion_result)
+				completion_result = await completion_fn(completion_result)
 			self.notify_waiters(completion_result)
 			# TODO: we may have a race condition here, or an unhandled case for aborted download (traceback seen in output)
 			#       File "/home/drobbins/development/funtoo-metatools/metatools/fastpull/core.py", line 75, in get_file_by_url
@@ -321,7 +321,8 @@ class WebSpider:
 				rich.progress.TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
 				rich.progress.BarColumn(bar_width=None),
 				rich.progress.DownloadColumn(),
-				rich.progress.TransferSpeedColumn()
+				rich.progress.TransferSpeedColumn(),
+				transient=True
 		)
 
 

@@ -14,6 +14,7 @@ from typing import Optional, Tuple
 
 import jinja2
 
+from metatools.steps import run_bg
 from metatools.store import StoreObject
 from metatools.fastpull.spider import FetchError, FetchRequest
 
@@ -101,7 +102,8 @@ class Archive:
 			shutil.rmtree(self.extract_path)
 		os.makedirs(self.top_path, exist_ok=False)
 
-	def store(self, key: dict = None, metadata: dict = None):
+
+	async def store(self, key: dict = None, metadata: dict = None):
 		"""
 		This method will store an archive as a dynamic archive, indexed by ``key``. If you want
 		to store a dynamic archive for later retrieval *by name*, then use the ``Archive.store_by_name``
@@ -142,9 +144,10 @@ class Archive:
 		else:
 			raise ValueError(f"Unrecognized archive format: {self.final_name}. Supported formats: tar.gz, tar.xz, tar.zst")
 		log.debug(f"store: command: {cmd}")
-		s, o = getstatusoutput(cmd)
-		if s != 0:
-			raise pkgtools.ebuild.BreezyError(f"Couldn't create archive {self.final_name}. Error: {o}")
+
+		proc, out = await run_bg(cmd)
+		if proc.returncode != 0:
+			raise pkgtools.ebuild.BreezyError(f"Couldn't execute {cmd}. Output: {out.decode()}")
 
 		# Store in BLOS and create integrity database reference:
 
@@ -165,7 +168,7 @@ class Archive:
 			except PermissionError:
 				log.warning(f"Unable to copy dynamic archive to {dist_path}. Make sure you are in the portage group.")
 
-	def store_by_name(self, key: dict = None, metadata: dict = None):
+	async def store_by_name(self, key: dict = None, metadata: dict = None):
 		"""
 		This method will store the current archive as a dynamic archive, and will be indexed by name, and with
 		an optional provided key, so that it can be retrieved by name using the ``Archive.find_by_name``
@@ -175,7 +178,8 @@ class Archive:
 			key = {}
 		# We must make final_name part of the key used to find the archive:
 		key["final_name"] = self.final_name
-		return self.store(key, metadata)
+		return await self.store(key, metadata)
+
 
 	@classmethod
 	def find(cls, key: dict = None, final_name: str = None) -> Tuple[Archive, dict] | Tuple[None, None]:
@@ -336,7 +340,8 @@ class Artifact(Archive):
 				extra_headers=self.extra_http_headers,
 				# TODO: we currently don't support authenticating to retrieve an Artifact (just HTTP requests for API)
 				username=None,
-				password=None
+				password=None,
+				final_name=self.final_name
 			)
 			log.debug(f'Artifact.ensure_fetched:{threading.get_ident()} now fetching {self.url} using FetchRequest {req}')
 			# TODO: this used to be indexed by catpkg, and by final_name. So we are now indexing by source URL.

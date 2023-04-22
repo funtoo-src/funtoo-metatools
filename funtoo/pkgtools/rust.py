@@ -152,7 +152,7 @@ async def create_crates_archive(hub, pkginfo):
 			os.path.join(crates_archive.top_path, artifact.final_name),
 		)
 
-	crates_archive.store(key=crates_bundle["key"])
+	await crates_archive.store(key=crates_bundle["key"])
 
 	return crates_archive
 
