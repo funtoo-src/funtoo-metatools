@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from portage import os
+import os
 from subpop.config import ConfigurationError
 
 
