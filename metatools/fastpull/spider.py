@@ -89,7 +89,12 @@ class Download:
 		self.hashes = hashes
 		self.final_data = None
 		self._temp_path = None
-		self.filesize = 0
+		self.filesize = None
+		self.total = None
+		self.fd = None
+		self.hash_calc_dict = None
+		self.download_task = None
+		self.start_time = None
 
 	def get_download_future(self):
 		log.debug(f"Download.await_existing:{threading.get_ident()} {self.request.url}")
@@ -140,10 +145,8 @@ class Download:
 		completed = False
 
 		while not completed and attempts < max_attempts:
-			total = None
-			download_task = None
 			try:
-				start_time = datetime.utcnow()
+				self.reset()
 				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					if response.status_code not in [200, 206]:
 						if response.status_code in [400, 404, 410]:
@@ -153,26 +156,21 @@ class Download:
 						else:
 							retry = True
 						raise FetchError(self.request, f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
-					if download_task is None:
+					if self.download_task is None:
 						#and datetime.utcnow() - start_time > timedelta(seconds=2):
 						# Only start download progress display if the download takes a minimum # of seconds...
 						if "Content-Length" in response.headers:
-							total = int(response.headers["Content-Length"])
-							download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=total)
+							self.total = int(response.headers["Content-Length"])
+							self.download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=self.total)
 						else:
-							total = None
-							download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=0)
+							self.total = None
+							self.download_task = self.spider.progress.add_task("Download", filename=self.request.filename, total=0)
 					# DO NOT USE aiter_raw(), below!! It will result in invalid downloads from some sites!
 					async for chunk in response.aiter_bytes():
-						on_chunk(chunk, response, download_task, total)
-					if download_task:
-						self.spider.progress.remove_task(download_task)
-						download_task = None
+						on_chunk(chunk, response)
+
 					completed = True
 			except httpx.RequestError as e:
-				if download_task:
-					self.spider.progress.remove_task(download_task)
-					download_task = None
 				log.error(f"Download failure for {self.request.url}: {str(e)}")
 				if attempts + 1 < max_attempts:
 					attempts += 1
@@ -181,11 +179,39 @@ class Download:
 				else:
 					break
 			finally:
-				if download_task:
-					self.spider.progress.remove_task(download_task)
+				if self.download_task:
+					self.spider.progress.remove_task(self.download_task)
+					self.download_task = None
 
 		if not completed:
 			raise FetchError(self.request, "http_fetch_stream failure")
+
+	def reset(self):
+		"""
+		Reset all necessary things after an aborted download that we will retry. We have to start from the beginning.
+		:return:
+		"""
+		os.makedirs(os.path.dirname(self.temp_path), exist_ok=True)
+		if self.fd:
+			self.fd.close()
+		self.fd = open(self.temp_path, "wb")
+		self.hash_calc_dict = {}
+		self.filesize = 0
+		self.total = None
+		self.start_time = datetime.utcnow()
+		for h in self.hashes:
+			self.hash_calc_dict[h] = getattr(hashlib, h)()
+
+	def on_chunk(self, chunk, response):
+		self.fd.write(chunk)
+		for hash in self.hashes:
+			self.hash_calc_dict[hash].update(chunk)
+		self.filesize += len(chunk)
+		if self.download_task:
+			if self.total:
+				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded)
+			else:
+				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded)
 
 	async def launch(self) -> None:
 		"""
@@ -200,36 +226,19 @@ class Download:
 		"""
 
 		log.debug(f"WebSpider.launch:{threading.get_ident()} spidering {self.request.url}...")
-		os.makedirs(os.path.dirname(self.temp_path), exist_ok=True)
 		if not self.spider.rich:
 			log.info(f"Spidering {self.request.url}")
-		fd = open(self.temp_path, "wb")
-		hashes = {}
-
-		for h in self.hashes:
-			hashes[h] = getattr(hashlib, h)()
-
-		def on_chunk(chunk, response, download_task, total):
-			fd.write(chunk)
-			for hash in self.hashes:
-				hashes[hash].update(chunk)
-			self.filesize += len(chunk)
-			if download_task:
-				if total:
-					self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
-				else:
-					self.spider.progress.update(download_task, completed=response.num_bytes_downloaded)
 
 		try:
-			await self._http_fetch_stream(on_chunk)
+			await self._http_fetch_stream(self.on_chunk)
 		except FetchError as fe:
 			raise fe
 		finally:
-			fd.close()
+			self.fd.close()
 
 		final_data = {}
 		for h in self.hashes:
-			final_data[h] = hashes[h].hexdigest()
+			final_data[h] = self.hash_calc_dict[h].hexdigest()
 		final_data['size'] = self.filesize
 		self.final_data = final_data
 
