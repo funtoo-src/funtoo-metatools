@@ -8,6 +8,7 @@ import threading
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime
+from json import JSONDecodeError
 from urllib.parse import urlparse
 
 import httpx
@@ -542,7 +543,11 @@ class WebSpider:
 					else:
 						retry = True
 					log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase} {response.json()}")
-					raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase} {response.json()}", retry=retry)
+					try:
+						err_response = response.json()
+					except JSONDecodeError:
+						err_response = response.text
+					raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase} {err_response}", retry=retry)
 				if is_json:
 					return response.json()
 				if encoding:
