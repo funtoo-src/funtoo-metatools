@@ -82,6 +82,7 @@ async def fetch_harness(fetch_method, url, max_age=None, refresh_interval=None, 
 			if e.retry and attempts + 1 < pkgtools.model.fetch_attempts:
 				pkgtools.model.log.error(f"Fetch method {fetch_method.__name__}: {e.msg}; retrying...")
 				continue
+			# TODO: I need a lot more info here -- if something failed -- why? this is important for IPv6 debug
 			# if we got here, we are on our LAST retry attempt or retry is False:
 			pkgtools.model.log.warning(f"Unable to retrieve {url}... trying to used cached version instead...")
 			# TODO: these should be logged persistently so they can be investigated.

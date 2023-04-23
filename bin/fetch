@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+
+import argparse
+import asyncio
+import os
+import sys
+from datetime import timedelta
+
+from metatools.fastpull.spider import FetchRequest
+from subpop.hub import Hub
+
+from metatools.config.autogen import AutogenConfig, StoreSpiderConfig
+
+hub = Hub()
+
+import dyne.org.funtoo.metatools.pkgtools as pkgtools
+
+
+
+CLI_CONFIG = {
+	"immediate": {"default": False, "action": "store_true", "help": "Never cache HTTP(s) fetches (default 15 mins)"},
+	"debug": {"default": False, "action": "store_true"},
+	"urls": {"default": [], "action": "store", "positional": True, "nargs": "*", "help": "URLs to fetch"},
+
+}
+
+def parse_args():
+	ap = argparse.ArgumentParser()
+	for arg, kwargs in CLI_CONFIG.items():
+		if "positional" in kwargs and kwargs["positional"]:
+			new_kwargs = kwargs.copy()
+			del new_kwargs["positional"]
+			ap.add_argument(arg, **new_kwargs)
+		else:
+			if "os" in kwargs:
+				del kwargs["os"]
+			ap.add_argument("--" + arg, **kwargs)
+	return ap.parse_args()
+
+
+async def main_thread():
+	hub.OPT = parse_args()
+	kwargs = {}
+	for arg in set(CLI_CONFIG.keys()) - {"immediate", "urls"}:
+		kwargs[arg] = getattr(hub.OPT, arg)
+	if hub.OPT.immediate:
+		kwargs['fetch_cache_interval'] = timedelta(seconds=0)
+	await pkgtools.launch(StoreSpiderConfig, **kwargs)
+	# result = await pkgtools.autogen.start()
+	for url in hub.OPT.urls:
+		req = FetchRequest(url=url)
+		result = await pkgtools.model.spider.http_fetch(req)
+		pkgtools.model.log.info(f"Retrieved {len(result)} bytes.")
+	pkgtools.model.log.debug("Stopping spider...")
+	await pkgtools.model.spider.stop()
+	pkgtools.model.log.debug("Spider stopped.")
+
+if __name__ == "__main__":
+	success = asyncio.run(main_thread())
+
+	if not success:
+		sys.exit(1)
+
+# vim: ts=4 sw=4 noet
