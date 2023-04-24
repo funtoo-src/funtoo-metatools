@@ -551,11 +551,11 @@ class WebSpider:
 						retry = False
 					else:
 						retry = True
-					log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase} {response.json()}")
 					try:
 						err_response = response.json()
 					except JSONDecodeError:
 						err_response = response.text
+					log.error(f"Fetch failure for {request.url}: {response.status_code} {response.reason_phrase} {err_response}")
 					raise FetchError(request, f"HTTP fetch Error: {request.url}: {response.status_code}: {response.reason_phrase} {err_response}", retry=retry)
 				if is_json:
 					return response.json()
