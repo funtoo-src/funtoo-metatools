@@ -56,7 +56,7 @@ class MergeConfig(MinimalConfig):
 	logger_name = "metatools.merge"
 
 	async def initialize(self, prod=False, push=False, release=None, create_branches=False, fixups_url=None,
-						 fixups_branch=None, debug=False):
+	                     fixups_branch=None, debug=False):
 		await super().initialize(debug=debug)
 		self.prod = prod
 		self.push = push
@@ -109,7 +109,7 @@ class SourceRepository:
 	"""
 
 	def __init__(self, yaml=None, name=None, copyright=None, url=None, eclasses=None, src_sha1=None, branch=None,
-				 notes=None):
+	             notes=None):
 		self.yaml = yaml
 		assert yaml is not None
 		self.name = name
@@ -230,9 +230,12 @@ class SourceCollection:
 				if repo_name in self.yaml.all_repo_objs:
 					self.repositories[repo_name] = self.yaml.all_repo_objs[repo_name]
 				else:
-					# note that src_sha1 and branch get passed as keyword arguments via **repo_def, but are ignored, and we pass them to initialize() in the
-					# next loop.
-					self.yaml.all_repo_objs[repo_name] = self.repositories[repo_name] = SharedSourceRepository(**repo_def, yaml=self.yaml, name=repo_name)
+					# note that src_sha1 and branch get passed as keyword arguments to initialize() in the next loop.
+					kwargs = repo_def.copy()
+					for arg in ["src_sha1", "branch"]:
+						if arg in kwargs:
+							del kwargs[arg]
+					self.yaml.all_repo_objs[repo_name] = self.repositories[repo_name] = SharedSourceRepository(**kwargs, yaml=self.yaml, name=repo_name)
 			for repo_name, repo in self.repositories.items():
 				branch = None
 				src_sha1 = None
@@ -262,7 +265,7 @@ class Kit:
 	source = None
 
 	def __init__(self, locator, release=None, name=None, stability=None, branch=None, eclasses=None, priority=None,
-				 aliases=None, masters=None, sync_url=None, settings=None):
+	             aliases=None, masters=None, sync_url=None, settings=None):
 		self.kit_fixups: GitRepositoryLocator = locator
 		assert self.kit_fixups is not None
 		self.release = release
@@ -616,8 +619,8 @@ class ReleaseYAML(YAMLReader):
 				s_branch = kit_insides["source"].get("branch", None)
 				s_src_sha1 = kit_insides["source"].get("src_sha1", None)
 				kit_insides['source'] = SourceRepository(yaml=self, name=f"{kit_name}-sources",
-														 url=kit_insides['source']['url'], branch=s_branch,
-														 src_sha1=s_src_sha1)
+				                                         url=kit_insides['source']['url'], branch=s_branch,
+				                                         src_sha1=s_src_sha1)
 				kits[kit_name].append(
 					SourcedKit(locator=self.model.locator, release=self, name=kit_name, **kit_insides))
 			else:
