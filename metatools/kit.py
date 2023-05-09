@@ -19,6 +19,7 @@ from metatools.hashutils import get_md5
 from metatools.metadata import AUXDB_LINES, get_catpkg_relations_from_depstring, get_filedata, extract_ebuild_metadata, strip_rev
 from metatools.model import get_model
 from metatools.tree import GitTreeError, run_shell, Tree
+from metatools.zmq.app_core import RouterListener
 
 model = get_model("metatools.merge")
 
@@ -693,9 +694,11 @@ class MetaRepoJobController:
 	meta_repo = None
 	# Does this job controller update meta-repo? If so, this get set to True, otherwise False.
 	write = False
+	moonbeam = None
 
 	def __init__(self, model, write=None):
 		self.model = model
+		self.moonbeam = RouterListener("merge-kits", bind_addr=f"ipc://{self.model.moonbeam_socket}")
 		if write:
 			self.write = write
 		assert isinstance(self.write, bool)

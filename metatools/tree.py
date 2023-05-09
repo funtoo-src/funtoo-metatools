@@ -95,7 +95,7 @@ class Tree:
 		if scope is None:
 			scope = "local"
 		self.log.info(f"Final scope: {scope}")
-		cmd_str = f"cd {autogen_path} && doit --fast --fastpull_scope={scope}"
+		cmd_str = f"cd {autogen_path} && doit --fast --fastpull_scope={scope} --moonbeam"
 		if self.model.debug:
 			cmd_str += " --debug"
 			self.log.debug(cmd_str)

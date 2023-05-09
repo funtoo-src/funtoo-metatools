@@ -44,8 +44,6 @@ class StoreConfig(MinimalConfig):
 
 
 class StoreSpiderConfig(StoreConfig):
-
-
 	logger_name = 'metatools.spider'
 
 	async def initialize(self, fastpull_scope=None, debug=False):
@@ -81,7 +79,7 @@ class AutogenConfig(StoreSpiderConfig):
 	def kit_spy(self):
 		"""
 		kit_spy is used for creating an autogen ID::
-		 	task_args["autogen_id"] = f"{pkgtools.model.kit_spy}:{task_args['gen_path'][len(base)+1:]}"
+			task_args["autogen_id"] = f"{pkgtools.model.kit_spy}:{task_args['gen_path'][len(base)+1:]}"
 		The autogen_id is intended to be used in the distfile integrity database, to tell use which autogen
 		referenced the artifact, in the situation where we don't have a specific BreezyBuild. This was a recent
 		add and may not be fully implemented or make sense based on our current architecture -- needs review
@@ -89,9 +87,21 @@ class AutogenConfig(StoreSpiderConfig):
 		"""
 		return "/".join(self.locator.root.split("/")[-2:])
 
-	async def initialize(self, fetch_cache_interval=None, fastpull_scope=None, debug=False, fixups_url=None, prod=False, force_dynamic=False, fixups_branch=None, fast=None, cat=None, pkg=None, autogens=None):
+	async def initialize(self, fetch_cache_interval=None,
+						 fastpull_scope=None,
+						 debug=False,
+						 fixups_url=None,
+						 prod=False,
+						 force_dynamic=False,
+						 fixups_branch=None,
+						 fast=None,
+						 cat=None,
+						 pkg=None,
+						 autogens=None,
+						 moonbeam=False):
 		await super().initialize(fastpull_scope=fastpull_scope, debug=debug)
 
+		self.moonbeam = moonbeam
 		self.fetch_cache = FileStoreFetchCache(db_base_path=self.store_path)
 
 		# Process specified autogens instead of recursing:

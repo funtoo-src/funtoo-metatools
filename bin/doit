@@ -33,6 +33,7 @@ CLI_CONFIG = {
 	"autogens": {"default": [], "action": "store", "positional": True, "nargs": "*", "help": "Autogen.py/.yaml files to process (default is to recursively scan)"},
 	"prod": {"default": False, "action": "store_true", "help": "Indicate we are doing a production tree regen (default: just being run as a dev)"},
 	"force_dynamic": {"default": False, "action": "store_true", "help": "Force the regeneration of dynamic archives."},
+	"moonbeam": {"default": False, "action": "store_true", "help": "Enable ZeroMQ connection back to parent merge-kits process (for logging, etc.)"},
 }
 
 

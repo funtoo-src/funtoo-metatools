@@ -45,6 +45,10 @@ class MinimalConfig(SubPopModel):
 			return "/var/tmp/repo_tmp"
 
 	@property
+	def moonbeam_socket(self):
+		return os.path.join(self.temp_path, "moonbeam_socket")
+
+	@property
 	def source_trees(self):
 		return os.path.join(self.work_path, "source-trees")
 
