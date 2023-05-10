@@ -1,9 +1,24 @@
 #!/usr/bin/env python3
 
+# MODULE IMPORT SAFETY CHECK
+# ===============================================================================================================
+# This is here to remove the automatic adding of the current working directory as a module import path, which can
+# mess up if a dir name matches some module name that one of our python deps actually needs. In python-3.11+, the
+# use of the -P option to python can turn this off so this hack isn't needed:
+import sys
+orig_sys_path = sys.path
+sys.path = [sys.platlibdir]
+import os
+try:
+	orig_sys_path.remove(os.getcwd())
+except ValueError:
+	pass
+sys.path = orig_sys_path
+# ===============================================================================================================
+
 import argparse
 import asyncio
-import os
-import sys
+
 from datetime import timedelta
 
 from subpop.hub import Hub
@@ -23,15 +38,21 @@ import dyne.org.funtoo.metatools.pkgtools as pkgtools
 
 CLI_CONFIG = {
 	"immediate": {"default": False, "action": "store_true", "help": "Never cache HTTP(s) fetches (default 15 mins)"},
-	"fastpull_scope": {"default": "local", "action": "store", "help": "Default index into fastpull for collecting artifacts."},
+	"fastpull_scope": {"default": "local", "action": "store",
+					   "help": "Default index into fastpull for collecting artifacts."},
 	"debug": {"default": False, "action": "store_true"},
-	"fixups_url": {"default": "https://code.funtoo.org/bitbucket/scm/core/kit-fixups.git", "action": "store", "help": "kit-fixups URL to use for cloning (for generators)"},
-	"fixups_branch": {"default": "master", "action": "store", "help": "kit-fixups branch to use for cloning (for generators)"},
-	"fast": {"default": False, "action": "store_true", "help": "Skip updating kit-fixups repo (assume this has been done for us, and it's ready to go."},
+	"fixups_url": {"default": "https://code.funtoo.org/bitbucket/scm/core/kit-fixups.git", "action": "store",
+				   "help": "kit-fixups URL to use for cloning (for generators)"},
+	"fixups_branch": {"default": "master", "action": "store",
+					  "help": "kit-fixups branch to use for cloning (for generators)"},
+	"fast": {"default": False, "action": "store_true",
+			 "help": "Skip updating kit-fixups repo (assume this has been done for us, and it's ready to go."},
 	"cat": {"default": None, "action": "store", "help": "Only run autogens matching this category."},
 	"pkg": {"default": None, "action": "store", "help": "Only run autogens matching this package name."},
-	"autogens": {"default": [], "action": "store", "positional": True, "nargs": "*", "help": "Autogen.py/.yaml files to process (default is to recursively scan)"},
-	"prod": {"default": False, "action": "store_true", "help": "Indicate we are doing a production tree regen (default: just being run as a dev)"},
+	"autogens": {"default": [], "action": "store", "positional": True, "nargs": "*",
+				 "help": "Autogen.py/.yaml files to process (default is to recursively scan)"},
+	"prod": {"default": False, "action": "store_true",
+			 "help": "Indicate we are doing a production tree regen (default: just being run as a dev)"},
 	"force_dynamic": {"default": False, "action": "store_true", "help": "Force the regeneration of dynamic archives."},
 	"moonbeam": {"default": False, "action": "store_true", "help": "Enable ZeroMQ connection back to parent merge-kits process (for logging, etc.)"},
 }
@@ -66,13 +87,14 @@ async def main_thread():
 
 	return result
 
+
 if __name__ == "__main__":
 	success = asyncio.run(main_thread())
 
 	if not success:
 		sys.exit(1)
-	#	os._exit(1)
-	##	os._exit(0)
+#	os._exit(1)
+##	os._exit(0)
 
 # TODO: add 'facts' database concept to allow more resiliency on failures (fall back to cached facts from last
 #       successful run)

@@ -35,19 +35,12 @@ def pypi_metadata_init(local_pkginfo, json_dict):
 		local_pkginfo["inherit"] = []
 	if "distutils-r1" not in local_pkginfo["inherit"]:
 		local_pkginfo["inherit"].append("distutils-r1")
-
-	for el in ["desc", ("home_page", "homepage"), "project_url"]:
-		if isinstance(el, tuple):
-			el, local_el = el
-		else:
-			local_el = el
-		local_pkginfo[local_el] = json_dict["info"][el] if el in json_dict["info"] else ""
-		if not isinstance(local_pkginfo[local_el], str):
-			local_pkginfo[local_el] = ""
-
-	if local_pkginfo["project_url"] != "":
-		local_pkginfo["homepage"] += " " + local_pkginfo["project_url"]
-
+	if "desc" not in local_pkginfo and "summary" in json_dict["info"] and json_dict["info"]["summary"]:
+		local_pkginfo["desc"] = json_dict["info"]["summary"]
+	if "homepage" not in local_pkginfo and "home_page" in json_dict["info"]:
+		local_pkginfo["homepage"] = f"{json_dict['info']['home_page']}"
+		if "project_url" in json_dict["info"]:
+			local_pkginfo["homepage"] += f" {json_dict['info']['project_url']}"
 	if "license" not in local_pkginfo and "classifiers" in json_dict["info"]:
 		local_pkginfo["license"] = pypi_license_to_gentoo(json_dict["info"]["classifiers"])
 

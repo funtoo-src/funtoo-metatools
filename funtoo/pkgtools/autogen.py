@@ -313,7 +313,7 @@ async def execute_generator(
 							pkginfo["version"] = key
 						new_pkginfo_list.append(pkginfo)
 				elif isinstance(pkginfo["version"], list):
-					raise TypeError(f"Lists are not yet supported for defining multiple versions. Was processing this: {pkginfo_list}")
+					raise TypeError(f"Lists are not yet supported for defining multiple versions. Was processing this: {pkginfo['version']} {autogen_id}")
 		pkginfo_list = new_pkginfo_list
 
 		# The generator now has the ability to make arbitrary modifications to our pkginfo_list (YAML).
@@ -651,14 +651,17 @@ async def start():
 		pkgtools.model.log.debug(f"FINISH: start() complete for {pkgtools.model.current_repo.root} - path 1, return True")
 		return True
 	else:
-		pkgtools.model.log.error(f"Autogen failed (count: {len(fail_list)}).")
+		pkgtools.model.log.error(f"Autogen failed (count: {len(fail_list)}). {fail_list}")
 		extra_info = []
 		if len(fail_list):
-
 			for fail in fail_list:
 				fail_info = getattr(fail, 'info', None)
 				if fail_info:
 					extra_info.append(fail_info)
+				else:
+					exc_info = getattr(fail, 'exception', None)
+					if exc_info:
+						extra_info.append(exc_info())
 		if len(extra_info):
 			# This will remove all duplicates
 			extra_info_dedup = sorted(list(set(extra_info)))

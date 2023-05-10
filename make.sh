@@ -1,7 +1,6 @@
 #!/bin/bash
 
 VERSION=`cat VERSION`
-CODENAME=`cat CODENAME`
 PKGNAME="funtoo-metatools"
 
 prep() {

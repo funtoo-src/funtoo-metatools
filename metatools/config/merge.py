@@ -132,6 +132,7 @@ class SourceRepository:
 			reclone=False,
 			model=self.yaml.model
 		)
+		self.tree.initialize()
 
 	def find_license(self, license):
 		try:

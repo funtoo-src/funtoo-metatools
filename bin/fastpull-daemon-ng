@@ -64,6 +64,8 @@ class Application(tornado.web.Application):
 	handlers = [
 		(r"/up", UptimeHandler),
 		(r"/distfiles/layout.conf", DirectHashLayoutConfHandler),
+		(r"/layout.conf", DirectHashLayoutConfHandler),
+		(r"/([0-9a-f][0-9a-f])/([0-9a-f][0-9a-f])/([0-9a-f][0-9a-f])/([0-9a-f]*)", DistfileHashHandler),
 		(r"/distfiles/([0-9a-f][0-9a-f])/([0-9a-f][0-9a-f])/([0-9a-f][0-9a-f])/([0-9a-f]*)", DistfileHashHandler),
 	]
 
