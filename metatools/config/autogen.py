@@ -10,6 +10,8 @@ from metatools.fastpull.core import IntegrityDatabase
 from metatools.fastpull.spider import WebSpider
 from metatools.fetch_cache import FileStoreFetchCache
 from metatools.tree import GitTree
+from metatools.zmq.app_core import RouterListener
+from metatools.zmq.zmq_msg_breezyops import BreezyMessage, MessageType
 
 
 class StoreConfig(MinimalConfig):
@@ -87,6 +89,13 @@ class AutogenConfig(StoreSpiderConfig):
 		"""
 		return "/".join(self.locator.root.split("/")[-2:])
 
+	def moonbeam_msg(self, json_dict):
+		if not self.moonbeam:
+			return
+		msg_obj = BreezyMessage(msg_type=MessageType.INFO, service="doit", action="info", json_dict=json_dict)
+		msg_obj.send(self.moonbeam_client)
+		self.log.debug(f"Moonbeam: sent: {json_dict}")
+
 	async def initialize(self, fetch_cache_interval=None,
 						 fastpull_scope=None,
 						 debug=False,
@@ -102,6 +111,8 @@ class AutogenConfig(StoreSpiderConfig):
 		await super().initialize(fastpull_scope=fastpull_scope, debug=debug)
 
 		self.moonbeam = moonbeam
+		if self.moonbeam:
+			self.moonbeam_client = RouterListener("moonbeam", bind_addr=f"ipc://{self.moonbeam_socket}")
 		self.fetch_cache = FileStoreFetchCache(db_base_path=self.store_path)
 
 		# Process specified autogens instead of recursing:
