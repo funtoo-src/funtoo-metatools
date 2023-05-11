@@ -3,6 +3,7 @@
 import asyncio
 import random
 import string
+import sys
 from datetime import datetime
 
 from zmq.asyncio import Context
@@ -137,7 +138,13 @@ class RouterListener:
 		self.setup()
 
 	def setup(self):
+	#	asyncio.create_task(self.howdy())
 		pass
+
+	async def howdy(self):
+		while True:
+			print("HOWDY")
+			await asyncio.sleep(0.1)
 
 	async def start(self):
 		while True:
@@ -149,7 +156,7 @@ class RouterListener:
 		This is a stub method that should be expanded upon, which handles all incoming messages from clients.
 		"""
 		zmq_identity = msg[0]
-		logging.debug(f"Received: {msg}")
+		sys.stdout.write(f"HOWDY Received: {msg}\n")
 		# Create a BreezyMessage object from the ZeroMQ multi-part message data:
 		msg_obj = BreezyMessage.from_msg(msg[1:])
 		# We would then do other things here with the object....

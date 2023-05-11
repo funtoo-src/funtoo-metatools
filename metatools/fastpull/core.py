@@ -7,7 +7,7 @@ from typing import Tuple
 
 from metatools.blos import BaseLayerObjectStore
 from metatools.fastpull.spider import FetchRequest, Download
-from metatools.steps import run_bg
+from metatools.tree import run_bg
 from metatools.store import Store, FileStorageBackend, DerivedKey, StoreObject
 
 log = logging.getLogger('metatools.autogen')

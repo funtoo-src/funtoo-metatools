@@ -209,7 +209,6 @@ class Download:
 		for hash in self.hashes:
 			self.hash_calc_dict[hash].update(chunk)
 		self.filesize += len(chunk)
-		log.debug(f"chunk! {self.download_task} {self.request.filename}: total {self.total, type(self.total)}: {response.num_bytes_downloaded}/{self.total}")
 		if self.download_task is not None:
 			if self.total:
 				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded)
@@ -466,7 +465,7 @@ class WebSpider:
 				pass
 
 	async def acquire_http_client(self, request):
-		log.debug(f"acquire_http_client: count: {len(self.http_clients)} (request for {request.hostname}) count: {self.fetch_count}")
+		#log.debug(f"acquire_http_client: count: {len(self.http_clients)} (request for {request.hostname}) count: {self.fetch_count}")
 		if request.hostname not in self.http_clients:
 			headers, auth = self.get_headers_and_auth(request)
 			client = self.http_clients[request.hostname] = httpx.AsyncClient(transport=self.transport, http2=True, base_url=request.hostname, headers=headers, auth=auth, follow_redirects=True, timeout=8)

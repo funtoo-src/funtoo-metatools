@@ -17,6 +17,13 @@ import dyne.org.funtoo.metatools.pkgtools as pkgtools
 
 
 async def main_thread(delete=False):
+	merge.FIXUP_REPO = merge.tree.GitTree(
+		"kit-fixups",
+		merge.model.MERGE_CONFIG.branch("kit-fixups"),
+		url=merge.model.MERGE_CONFIG.kit_fixups,
+		root=merge.model.MERGE_CONFIG.source_trees + "/kit-fixups",
+	)
+	await merge.FIXUP_REPO.initialize()
 	for fp_entry in merge.model.FASTPULL.find({}):
 		fp_path = merge.parent.get_disk_path(fp_entry["hashes"]["sha512"])
 		if os.path.exists(fp_path):
@@ -43,15 +50,6 @@ async def main_thread(delete=False):
 
 
 if __name__ == "__main__":
-
-	merge.FIXUP_REPO = merge.tree.GitTree(
-		"kit-fixups",
-		merge.model.MERGE_CONFIG.branch("kit-fixups"),
-		url=merge.model.MERGE_CONFIG.kit_fixups,
-		root=merge.model.MERGE_CONFIG.source_trees + "/kit-fixups",
-	)
-	merge.FIXUP_REPO.initialize()
-
 	hub.LOOP.run_until_complete(main_thread(delete=True if "delete" in sys.argv[1:] else False))
 
 # vim: ts=4 sw=4 noet

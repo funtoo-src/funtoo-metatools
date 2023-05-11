@@ -79,7 +79,7 @@ class MergeConfig(MinimalConfig):
 			keep_branch=True
 		)
 		self.log.debug("Initializing kit-fixups repository in model init")
-		self.kit_fixups.initialize()
+		await self.kit_fixups.initialize()
 		self.locator = GitRepositoryLocator(start_path=self.kit_fixups.root)
 
 		self.release_yaml = ReleaseYAML(self)
@@ -108,8 +108,7 @@ class SourceRepository:
 	is used as a source tree for copying in ebuilds and eclasses into a kit.
 	"""
 
-	def __init__(self, yaml=None, name=None, copyright=None, url=None, eclasses=None, src_sha1=None, branch=None,
-	             notes=None):
+	def __init__(self, yaml=None, name=None, copyright=None, url=None, eclasses=None, src_sha1=None, branch=None, notes=None):
 		self.yaml = yaml
 		assert yaml is not None
 		self.name = name
@@ -121,18 +120,25 @@ class SourceRepository:
 		self.tree = None
 		self.src_sha1 = src_sha1
 		self.branch = branch
-		self.yaml.model.log.info(f"Initializing: Source Repository {self.name} branch: {branch} SHA1: {src_sha1} {self.url}")
+		self.initialized = False
+
+	async def initialize(self):
+		# This is a simple source repository -- we only want to initialize it once:
+		if self.initialized:
+			return
+		self.yaml.model.log.info(f"Initializing: Source Repository {self.name} branch: {self.branch} SHA1: {self.src_sha1} {self.url}")
 		self.tree = GitTree(
 			self.name,
 			url=self.url,
 			root="%s/%s" % (self.yaml.model.source_trees, self.name),
-			branch=branch,
-			commit_sha1=src_sha1,
+			branch=self.branch,
+			commit_sha1=self.src_sha1,
 			origin_check=False,
 			reclone=False,
 			model=self.yaml.model
 		)
-		self.tree.initialize()
+		await self.tree.initialize()
+		self.initialized = True
 
 	def find_license(self, license):
 		try:
@@ -166,7 +172,7 @@ class SharedSourceRepository(SourceRepository):
 		# This can be used to track a GitTree associated with the source repository.
 		self.tree = None
 
-	def initialize(self, branch=None, src_sha1=None):
+	async def initialize(self, branch=None, src_sha1=None):
 		if self.tree:
 			if (branch is None or self.tree.branch == branch) and src_sha1 == self.tree.commit_sha1:
 				self.yaml.model.log.info(f"Keeping existing source repository {self.name} branch: {self.tree.branch} SHA1: {self.tree.commit_sha1} {self.url}")
@@ -174,7 +180,7 @@ class SharedSourceRepository(SourceRepository):
 			else:
 				self.yaml.model.log.info(f"src repo {self.name}: initialize: {self.tree.branch}/{self.tree.commit_sha1} -> {branch}/{src_sha1}")
 				self.yaml.model.log.info(f"Checkout: Source Repository {self.name} branch: {branch} SHA1: {src_sha1} {self.url}")
-				self.tree.gitCheckout(branch=branch, sha1=src_sha1)
+				await self.tree.git_checkout(branch=branch, sha1=src_sha1)
 		else:
 			self.yaml.model.log.info(f"Initializing: Source Repository {self.name} branch: {branch} SHA1: {src_sha1} {self.url}")
 			self.tree = GitTree(
@@ -187,7 +193,7 @@ class SharedSourceRepository(SourceRepository):
 				reclone=False,
 				model=self.yaml.model
 			)
-			self.tree.initialize()
+			await self.tree.initialize()
 
 
 class SourceCollection:
@@ -213,44 +219,38 @@ class SourceCollection:
 			return license
 		self.yaml.model.log.error(f"No license named '{license}' found in SourceCollection {self.name}")
 
-	def initialize(self, repo_names=None):
+	async def initialize(self, repo_names=None):
 
 		"""
 		This method initializes the source repositories referenced by the kit to ensure that they are all initialized to the
 		proper branch and/or SHA1. Some internal checking is done to avoid re-initializing repositories unnecessarily, so if
 		they are already set up properly then no action will be taken.
+
+		Note: Due to the nature of what we're doing, these repositories are all SharedSourceRepositories.
 		"""
 
-		repo_futures = []
-		with ThreadPoolExecutor(max_workers=2) as executor:
-			for repo_name, repo_def in self.repo_defs.items():
-				# Skip any repos that we aren't using right now....
-				if repo_names is not None and repo_name not in repo_names:
-					continue
-				# If repo already exists, don't create it from scratch. Should be faster:
-				if repo_name in self.yaml.all_repo_objs:
-					self.repositories[repo_name] = self.yaml.all_repo_objs[repo_name]
-				else:
-					# note that src_sha1 and branch get passed as keyword arguments to initialize() in the next loop.
-					kwargs = repo_def.copy()
-					for arg in ["src_sha1", "branch"]:
-						if arg in kwargs:
-							del kwargs[arg]
-					self.yaml.all_repo_objs[repo_name] = self.repositories[repo_name] = SharedSourceRepository(**kwargs, yaml=self.yaml, name=repo_name)
-			for repo_name, repo in self.repositories.items():
-				branch = None
-				src_sha1 = None
-				if "src_sha1" in self.repo_defs[repo_name]:
-					src_sha1 = self.repo_defs[repo_name]["src_sha1"]
-				if "branch" in self.repo_defs[repo_name]:
-					branch = self.repo_defs[repo_name]["branch"]
-				fut = executor.submit(repo.initialize, branch=branch, src_sha1=src_sha1)
-				repo_futures.append(fut)
-			for repo_fut in as_completed(repo_futures):
-				# Getting .result() will also cause any exception to be thrown:
-				repo_dict = repo_fut.result()
+		for repo_name, repo_def in self.repo_defs.items():
+			# Skip any repos that we aren't using right now....
+			if repo_names is not None and repo_name not in repo_names:
 				continue
-
+			# If repo already exists, don't create it from scratch. Should be faster:
+			if repo_name in self.yaml.all_repo_objs:
+				self.repositories[repo_name] = self.yaml.all_repo_objs[repo_name]
+			else:
+				# note that src_sha1 and branch get passed as keyword arguments to initialize() in the next loop.
+				kwargs = repo_def.copy()
+				for arg in ["src_sha1", "branch"]:
+					if arg in kwargs:
+						del kwargs[arg]
+				self.yaml.all_repo_objs[repo_name] = self.repositories[repo_name] = SharedSourceRepository(**kwargs, yaml=self.yaml, name=repo_name)
+		for repo_name, repo in self.repositories.items():
+			branch = None
+			src_sha1 = None
+			if "src_sha1" in self.repo_defs[repo_name]:
+				src_sha1 = self.repo_defs[repo_name]["src_sha1"]
+			if "branch" in self.repo_defs[repo_name]:
+				branch = self.repo_defs[repo_name]["branch"]
+			await repo.initialize(branch=branch, src_sha1=src_sha1)
 		self.yaml.model.current_source_def = self
 
 
@@ -281,7 +281,7 @@ class Kit:
 		self.sync_url = sync_url.format(kit_name=name) if sync_url else None
 		self.settings = settings if settings is not None else {}
 
-	def initialize_sources(self):
+	async def initialize_sources(self):
 		pass
 
 	def get_copyright_rst(self):
@@ -307,12 +307,8 @@ class SourcedKit(Kit):
 		super().__init__(**kwargs)
 		self.source = source
 
-	def initialize_sources(self):
-		"""
-		For a SourcedKit, the underlying source repository is already initialized and doesn't need to be potentially
-		reset to the proper branch or SHA1.
-		"""
-		pass
+	async def initialize_sources(self):
+		await self.source.initialize()
 
 
 class AutoGeneratedKit(Kit):
@@ -329,7 +325,7 @@ class AutoGeneratedKit(Kit):
 			self._package_data = self._get_package_data()
 		return self._package_data
 
-	def initialize_sources(self):
+	async def initialize_sources(self):
 		"""
 		This method is used to get the SourceCollection's SharedSourceRepository objects initialized so we are ready to copy ebuilds/eclasses from
 		the right branch/SHA1.
@@ -344,7 +340,7 @@ class AutoGeneratedKit(Kit):
 			repo_names.append(repo_name)
 		for repo_name, extra in self.get_kit_items(section="eclasses"):
 			repo_names.append(repo_name)
-		self.source.initialize(repo_names=repo_names)
+		await self.source.initialize(repo_names=repo_names)
 
 	def _get_package_data(self):
 

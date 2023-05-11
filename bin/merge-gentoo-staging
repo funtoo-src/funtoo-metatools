@@ -11,6 +11,7 @@ hub = Hub()
 
 # This function updates the gentoo-staging tree with all the latest gentoo updates:
 
+
 async def gentoo_staging_update():
 	model = MinimalConfig()
 	await model.initialize()
@@ -21,11 +22,11 @@ async def gentoo_staging_update():
 		root=model.dest_trees + "/gentoo-staging",
 		model=model
 	)
-	gentoo_staging_w.initialize()
+	await gentoo_staging_w.initialize()
 
 	kit_gen = SimpleKitGenerator(out_tree=gentoo_staging_w)
 	gentoo_src = GitTree("gentoo-x86", "master", url="https://github.com/gentoo/gentoo.git", pull=True, model=model)
-	gentoo_src.initialize()
+	await gentoo_src.initialize()
 
 	step = SyncFromTree(
 			gentoo_src,
@@ -33,7 +34,7 @@ async def gentoo_staging_update():
 		)
 
 	await step.run(kit_gen)
-	gentoo_staging_w.gitCommit(message="gentoo updates", push=True)
+	await gentoo_staging_w.git_commit(message="gentoo updates", push=True)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ from typing import Optional, Tuple
 
 import jinja2
 
-from metatools.steps import run_bg
+from metatools.tree import run_bg
 from metatools.store import StoreObject
 from metatools.fastpull.spider import FetchError, FetchRequest
 

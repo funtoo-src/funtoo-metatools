@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import asyncio
 import itertools
 import os
 import re
@@ -15,15 +14,6 @@ model = get_model("metatools.merge")
 
 def run_shell(cmd_list, abort_on_failure=True, chdir=None):
 	return metatools.tree.run_shell(cmd_list, abort_on_failure=abort_on_failure, chdir=chdir, logger=model.log)
-
-
-async def run_bg(cmd):
-	proc = await asyncio.create_subprocess_shell(cmd,
-	stdout=asyncio.subprocess.PIPE,
-	stderr=asyncio.subprocess.STDOUT)
-
-	stdout, stderr = await proc.communicate()
-	return proc, stdout
 
 
 class MergeStep:
@@ -99,7 +89,7 @@ class SyncDir(MergeStep):
 		if self.delete:
 			cmd += "--delete --delete-excluded "
 		cmd += "%s %s" % (src, dest)
-		run_shell(cmd)
+		await run_shell(cmd)
 
 
 class SyncFromTree(SyncDir):
@@ -112,7 +102,7 @@ class SyncFromTree(SyncDir):
 
 	async def run(self, kit_gen):
 		await SyncDir.run(self, kit_gen)
-		kit_gen.out_tree.logTree(self.src_tree)
+		kit_gen.out_tree.log_tree(self.src_tree)
 
 
 class GenerateRepoMetadata(MergeStep):
@@ -170,7 +160,7 @@ class FindAndRemove(MergeStep):
 	async def run(self, kit_gen):
 		for glob in self.globs:
 			cmd = f"find {kit_gen.out_tree.root} -name {glob} -exec rm -rf {{}} +"
-			run_shell(cmd, abort_on_failure=False)
+			await run_shell(cmd, abort_on_failure=False)
 
 
 class RemoveFiles(MergeStep):
@@ -182,7 +172,7 @@ class RemoveFiles(MergeStep):
 	async def run(self, kit_gen):
 		for glob in self.globs:
 			cmd = "rm -rf %s/%s" % (kit_gen.out_tree.root, glob)
-			run_shell(cmd)
+			await run_shell(cmd)
 
 
 class CopyFiles(MergeStep):
@@ -217,7 +207,7 @@ class CopyFiles(MergeStep):
 			parent = os.path.dirname(f_dst_path)
 			if not os.path.exists(parent):
 				os.makedirs(parent, exist_ok=True)
-			run_shell(f"cp -a {f_src_path} {f_dst_path}")
+			await run_shell(f"cp -a {f_src_path} {f_dst_path}")
 
 
 class CopyAndRename(MergeStep):
@@ -232,7 +222,7 @@ class CopyAndRename(MergeStep):
 		for f in os.listdir(srcpath):
 			destfile = os.path.join(kit_gen.out_tree.root, self.dest)
 			destfile = os.path.join(destfile, self.ren_fun(f))
-			run_shell(f"cp -a {srcpath}/{f} {destfile}")
+			await run_shell(f"cp -a {srcpath}/{f} {destfile}")
 
 
 class SyncFiles(MergeStep):
@@ -281,7 +271,7 @@ class CleanTree(MergeStep):
 			if fn in self.exclude:
 				continue
 			files += " '" + fn + "'"
-		run_shell(f"cd {kit_gen.out_tree.root} && rm -rf {files[1:]}")
+		await run_shell(f"cd {kit_gen.out_tree.root} && rm -rf {files[1:]}")
 
 
 class ELTSymlinkWorkaround(MergeStep):
@@ -304,7 +294,7 @@ class InsertFilesFromSubdir(MergeStep):
 		self.src_offset = src_offset
 
 	async def run(self, kit_gen):
-		kit_gen.out_tree.logTree(self.srctree)
+		kit_gen.out_tree.log_tree(self.srctree)
 		src = self.srctree.root
 		if self.src_offset:
 			src = os.path.join(src, self.src_offset)
@@ -332,7 +322,7 @@ class InsertFilesFromSubdir(MergeStep):
 			elif isinstance(self.skip, regextype):
 				if self.skip.match(e):
 					continue
-			run_shell("cp -a %s/%s %s" % (src, e, dst))
+			await run_shell("cp -a %s/%s %s" % (src, e, dst))
 
 
 class PruneLicenses(MergeStep):
@@ -388,7 +378,7 @@ class ZapMatchingEbuilds(MergeStep):
 	async def run(self, kit_gen):
 		if self.branch is not None:
 			# Allow dynamic switching to different branches/commits to grab things we want:
-			self.srctree.gitCheckout(branch=self.branch)
+			self.srctree.git_checkout(branch=self.branch)
 		# Figure out what categories to process:
 		dest_cat_path = os.path.join(kit_gen.out_tree.root, "profiles/categories")
 		if os.path.exists(dest_cat_path):
@@ -410,7 +400,7 @@ class ZapMatchingEbuilds(MergeStep):
 				if not os.path.exists(dest_pkgdir):
 					# don't need to zap as it doesn't exist
 					continue
-				run_shell("rm -rf %s" % dest_pkgdir)
+				await run_shell("rm -rf %s" % dest_pkgdir)
 
 
 class Autogen(MergeStep):
@@ -496,7 +486,7 @@ class InsertEbuilds(MergeStep):
 		else:
 			srctree_root = self.srctree.root
 
-		kit_gen.out_tree.logTree(self.srctree)
+		kit_gen.out_tree.log_tree(self.srctree)
 		# Figure out what categories to process:
 		src_cat_path = os.path.join(srctree_root, "profiles/categories")
 		dest_cat_path = os.path.join(kit_gen.out_tree.root, "profiles/categories")
@@ -600,7 +590,7 @@ class InsertEbuilds(MergeStep):
 			with open(temp_out, "w") as f:
 				f.write("#!/bin/bash\n")
 				f.write(script_out)
-			run_shell(f"/bin/bash {temp_out}")
+			await run_shell(f"/bin/bash {temp_out}")
 			os.unlink(temp_out)
 		for check in checks:
 			if not os.path.exists(check):
@@ -622,7 +612,7 @@ class ProfileDepFix(MergeStep):
 				sp = line.split()
 				if len(sp) >= 2:
 					prof_path = sp[1]
-					run_shell("rm -f %s/profiles/%s/deprecated" % (kit_gen.out_tree.root, prof_path))
+					await run_shell("rm -f %s/profiles/%s/deprecated" % (kit_gen.out_tree.root, prof_path))
 
 
 class RunSed(MergeStep):
@@ -641,15 +631,15 @@ class RunSed(MergeStep):
 	async def run(self, kit_gen):
 		commands = list(itertools.chain.from_iterable(("-e", command) for command in self.commands))
 		files = [os.path.join(kit_gen.out_tree.root, file) for file in self.files]
-		run_shell(["sed"] + commands + ["-i"] + files)
+		await run_shell(["sed"] + commands + ["-i"] + files)
 
 
 class Minify(MergeStep):
 	"""Minify removes ChangeLogs and shrinks Manifests."""
 
 	async def run(self, kit_gen):
-		run_shell("( cd %s && find -iname ChangeLog | xargs rm -f )" % kit_gen.out_tree.root, abort_on_failure=False)
-		run_shell("( cd %s && find -iname Manifest | xargs -i@ sed -ni '/^DIST/p' @ )" % kit_gen.out_tree.root)
+		await run_shell("( cd %s && find -iname ChangeLog | xargs rm -f )" % kit_gen.out_tree.root, abort_on_failure=False)
+		await run_shell("( cd %s && find -iname Manifest | xargs -i@ sed -ni '/^DIST/p' @ )" % kit_gen.out_tree.root)
 
 
 class GenPythonUse(MergeStep):
