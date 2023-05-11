@@ -867,28 +867,29 @@ class MetaRepoJobController:
 
 		# Mirroring to GitHub happens here:
 		if model.push:
-			self.mirror_all_repositories()
+			await self.mirror_all_repositories()
 		model.log.debug("exiting from job controller")
 		self.display_error_summary()
 		return True
 
-	def mirror_repository(self, repo: Tree, base_path, mirror):
+	async def mirror_repository(self, repo: Tree, base_path, mirror):
 		"""
 		Mirror a repository to its mirror location, ie. GitHub.
 		"""
 
 		os.makedirs(base_path, exist_ok=True)
-		run_shell(f"git clone --bare {repo.root} {base_path}/{repo.name}.pushme", logger=model.log)
-		run_shell(
+		await run_shell(f"git clone --bare {repo.root} {base_path}/{repo.name}.pushme", logger=model.log)
+		await run_shell(
 			f"cd {base_path}/{repo.name}.pushme && git remote add upstream {mirror} && git push --mirror upstream",
 			logger=model.log
 		)
-		run_shell(f"rm -rf {base_path}/{repo.name}.pushme", logger=model.log)
+		await run_shell(f"rm -rf {base_path}/{repo.name}.pushme", logger=model.log)
 		return repo.name
 
-	def mirror_all_repositories(self):
+	# TODO: this can easily be made faster with gather:
+	async def mirror_all_repositories(self):
 		base_path = os.path.join(model.temp_path, "mirror_repos")
-		run_shell(f"rm -rf {base_path}", logger=model.log)
+		await run_shell(f"rm -rf {base_path}", logger=model.log)
 		kit_mirror_futures = []
 		for kit_job in self.kit_jobs:
 			if not kit_job.out_tree.mirrors:
@@ -896,10 +897,10 @@ class MetaRepoJobController:
 			kit = kit_job.kit
 			for mirror in kit_job.out_tree.mirrors:
 				mirror = mirror.format(repo=kit_job.kit.name)
-				self.mirror_repository(kit_job.out_tree, base_path, mirror)
+				await self.mirror_repository(kit_job.out_tree, base_path, mirror)
 		for mirror in self.meta_repo.mirrors:
 			mirror = mirror.format(repo=self.meta_repo.name)
-			self.mirror_repository(self.meta_repo, base_path, mirror)
+			await self.mirror_repository(self.meta_repo, base_path, mirror)
 		print("Mirroring of meta-repo complete.")
 
 
