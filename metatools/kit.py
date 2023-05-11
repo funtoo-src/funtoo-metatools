@@ -415,7 +415,7 @@ class KitGenerator:
 
 		await self.run(self.autogen_and_copy_from_kit_fixups())
 
-	def copy_licenses(self, used_licenses=None):
+	async def copy_licenses(self, used_licenses=None):
 		needed_licenses = set()
 		os.makedirs(f"{self.out_tree.root}/licenses", exist_ok=True)
 
@@ -437,11 +437,6 @@ class KitGenerator:
 		#		general idea as we don't have this mechanism in the autogen process right now
 		#		(separated logs don't go to disk.) So maybe we want to implement this outside this
 		#		method, in the KitJob.
-
-	async def reposcan(self):
-		self.fetch_kit()
-		self.gen_cache()
-		self.flush_kit()
 
 	async def generate(self):
 		"""
@@ -513,7 +508,7 @@ class KitGenerator:
 		############################################################################################################
 
 		used_licenses = self.gen_cache()
-		self.copy_licenses(used_licenses=used_licenses)
+		await self.copy_licenses(used_licenses=used_licenses)
 
 		############################################################################################################
 		# Python USE settings auto-generation and other finalization steps:
@@ -812,9 +807,6 @@ class MetaRepoJobController:
 		other_pool = KitExecutionPool(jobs=other_jobs_list, method=method)
 		success = await other_pool.run()
 		return success
-
-	async def reposcan(self):
-		await self.process_all_kits_in_release(method="reposcan")
 
 	async def distfile_sync(self):
 		await self.process_all_kits_in_release(method="distfile_scan")
