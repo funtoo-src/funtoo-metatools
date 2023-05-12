@@ -5,9 +5,10 @@
 # This is here to remove the automatic adding of the current working directory as a module import path, which can
 # mess up if a dir name matches some module name that one of our python deps actually needs. In python-3.11+, the
 # use of the -P option to python can turn this off so this hack isn't needed:
-import sys
+
+import sys, sysconfig
 orig_sys_path = sys.path
-sys.path = [sys.platlibdir]
+sys.path = [sysconfig.get_path('purelib')]
 import os
 try:
 	orig_sys_path.remove(os.getcwd())
