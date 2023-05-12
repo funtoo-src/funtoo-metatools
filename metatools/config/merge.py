@@ -42,6 +42,7 @@ class MergeConfig(MinimalConfig):
 	git_kwargs = {}
 	fixups_url = None
 	fixups_branch = None
+	howdy = False
 
 	# Things used during runtime processing:
 	kit_fixups: GitTree = None
@@ -56,7 +57,7 @@ class MergeConfig(MinimalConfig):
 	logger_name = "metatools.merge"
 
 	async def initialize(self, prod=False, push=False, release=None, create_branches=False, fixups_url=None,
-	                     fixups_branch=None, debug=False):
+	                     fixups_branch=None, debug=False, howdy=False):
 		await super().initialize(debug=debug)
 		self.prod = prod
 		self.push = push
@@ -65,7 +66,7 @@ class MergeConfig(MinimalConfig):
 		self.fixups_url = fixups_url
 		self.fixups_branch = fixups_branch
 		self.debug = debug
-
+		self.howdy = howdy
 		self.log.debug("Trying to find kit-fixups")
 
 		# TODO: refuse to use any source repository that has local changes (use git status --porcelain | wc -l)

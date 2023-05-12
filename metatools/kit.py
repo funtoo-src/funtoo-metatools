@@ -682,6 +682,18 @@ class KitExecutionPool:
 		return True
 
 
+class MoonBeam(RouterListener):
+
+	def setup(self):
+		if  model.howdy:
+			asyncio.create_task(self.howdy())
+
+	async def howdy(self):
+		while True:
+			print("HOWDY")
+			await asyncio.sleep(0.1)
+
+
 class MetaRepoJobController:
 	"""
 	This class is designed to run the full meta-repo and kit regeneration process -- in other words, the entire
@@ -700,7 +712,7 @@ class MetaRepoJobController:
 
 	def __init__(self, model, write=None):
 		self.model = model
-		self.moonbeam = RouterListener("merge-kits", bind_addr=f"ipc://{self.model.moonbeam_socket}")
+		self.moonbeam = MoonBeam("merge-kits", bind_addr=f"ipc://{self.model.moonbeam_socket}")
 		if write:
 			self.write = write
 		assert isinstance(self.write, bool)

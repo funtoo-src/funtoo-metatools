@@ -138,13 +138,7 @@ class RouterListener:
 		self.setup()
 
 	def setup(self):
-	#	asyncio.create_task(self.howdy())
 		pass
-
-	async def howdy(self):
-		while True:
-			print("HOWDY")
-			await asyncio.sleep(0.1)
 
 	async def start(self):
 		while True:

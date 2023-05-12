@@ -50,7 +50,8 @@ async def main_thread(args):
 		create_branches=args.create_branches,
 		fixups_url=args.fixups_url,
 		fixups_branch=args.fixups_branch,
-		debug=args.debug
+		debug=args.debug,
+		howdy=args.howdy
 	)
 	controller = MetaRepoJobController(model, write=True)
 	try:
@@ -70,7 +71,8 @@ CLI_CONFIG = {
 	"db": {"action": "store_true", "default": False},
 	"create_branches": {"action": "store_true", "default": False},
 	"release": {"positional": True},
-	"debug": {"action": "store_true", "default": False}
+	"debug": {"action": "store_true", "default": False},
+	"howdy": {"action": "store_true", "default": False}
 }
 
 
