@@ -463,6 +463,17 @@ def do_package_use_line(pkg, def_python, bk_python, imps):
 		if bk_python and bk_python in imps:
 			out = "%s python_single_target_%s" % (pkg, bk_python)
 		else:
+			# This is a non-deterministic race condition as to what single implementation we choose, since imps is a
+			# list and we use imps[0]. So let's try to enforce an order. First, we will try to remove all "pypy" imps
+			# if possible, and then sort the list and use the first non-pypi implementation. This will give us
+			# consistent results regen to regen.
+			non_pypy_imps = []
+			for imp in imps:
+				if not imp.startswith("pypy"):
+					non_pypy_imps.append(imp)
+			if not len(non_pypy_imps):
+				non_pypy_imps = imps
+			non_pypy_imps = sorted(non_pypy_imps)
 			out = "%s python_single_target_%s python_targets_%s" % (pkg, imps[0], imps[0])
 	return out
 
