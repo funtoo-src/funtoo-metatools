@@ -474,7 +474,7 @@ def do_package_use_line(pkg, def_python, bk_python, imps):
 			if not len(non_pypy_imps):
 				non_pypy_imps = imps
 			non_pypy_imps = sorted(non_pypy_imps)
-			out = "%s python_single_target_%s python_targets_%s" % (pkg, imps[0], imps[0])
+			out = "%s python_single_target_%s python_targets_%s" % (pkg, non_pypy_imps[0], non_pypy_imps[0])
 	return out
 
 # vim: ts=4 sw=4 noet
