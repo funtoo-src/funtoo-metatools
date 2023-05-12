@@ -150,7 +150,7 @@ def create_ebuild_cond_dep(pkginfo, pydeplabel, atoms):
 		out = out_atoms
 	else:
 		# stuff everything into a python_gen_cond_dep:
-		out = [r"$(python_gen_cond_dep '"] + out_atoms + [r"' " + " ".join(sorted(pyspec)), ")"]
+		out = [r"$(python_gen_cond_dep '" + ' '.join(sorted(out_atoms)) + r"' " + " ".join(sorted(pyspec)) + ")"]
 	return out
 
 
@@ -308,7 +308,7 @@ def expand_pydeps(pkginfo, compat_mode=False, compat_ebuild=False):
 		if not deps:
 			continue
 		if dep_type not in pkginfo:
-			pkginfo[dep_type] = "\n".join(sorted(deps))
+			pkginfo[dep_type] = "\n".join(deps)
 		else:
-			pkginfo[dep_type] += "\n" + "\n".join(sorted(deps))
+			pkginfo[dep_type] += "\n" + "\n".join(deps)
 	return None
