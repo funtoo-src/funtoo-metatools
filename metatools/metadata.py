@@ -394,6 +394,7 @@ async def get_python_use_lines(kit_gen, catpkg, cpv_list, cur_tree, def_python, 
 	ebs = {}
 	for cpv in cpv_list:
 		if "metadata" not in kit_gen.kit_cache[cpv]:
+			logging.warning(f"NO METADATA FOR {cpv}")
 			continue
 		metadata = kit_gen.kit_cache[cpv]["metadata"]
 		if not metadata:

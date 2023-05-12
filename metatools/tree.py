@@ -158,7 +158,6 @@ class Tree:
 		cmd += "EOF\n"
 		cmd += ")\n"
 		print("running: %s" % cmd)
-		# we use os.system because this multi-line command breaks runShell() - really, breaks commands.getstatusoutput().
 		myenv = os.environ.copy()
 		if os.geteuid() == 0:
 			# make sure HOME is set if we are root (maybe we entered to a minimal environment -- this will mess git up.)
