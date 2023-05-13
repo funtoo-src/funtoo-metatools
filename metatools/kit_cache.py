@@ -15,7 +15,8 @@ model = get_model("metatools")
 class KitCache:
 	json_data = None
 
-	def __init__(self, name, branch):
+	def __init__(self, release, name, branch):
+		self.release = release
 		self.name = name
 		self.branch = branch
 		self.writes = set()
@@ -25,6 +26,14 @@ class KitCache:
 		self.processing_warnings = []
 
 	def load(self):
+		# Upgrade to new path format, keeping old kit-cache:
+		if not os.path.exists(self.path):
+			if os.path.exists(self.old_path):
+				os.makedirs(os.path.dirname(self.path), exist_ok=True)
+				os.link(self.old_path, self.path)
+				os.unlink(self.old_path)
+
+		# This is the regular load logic:
 		if os.path.exists(self.path):
 			self.json_data = self.load_json()
 		else:
@@ -54,6 +63,10 @@ class KitCache:
 
 	@property
 	def path(self):
+		return os.path.join(model.temp_path, "kit_cache", self.release, f"{self.name}-{self.branch}")
+
+	@property
+	def old_path(self):
 		return os.path.join(model.temp_path, "kit_cache", f"{self.name}-{self.branch}")
 
 	def __setitem__(self, atom, value):

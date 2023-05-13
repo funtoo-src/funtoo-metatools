@@ -340,7 +340,8 @@ class GitTree(Tree):
 					init_branches.remove(self.branch)
 					init_branches += [self.branch]
 		else:
-			init_branches.append(self.branch)
+			if self.branch is not None:
+				init_branches.append(self.branch)
 
 		for branch in init_branches:
 			if not self.local_branch_exists(branch):

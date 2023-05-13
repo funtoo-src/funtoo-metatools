@@ -1,56 +1,54 @@
 #!/usr/bin/python3
 
-
+import sys
+from pymongo import MongoClient, ASCENDING
 from subpop.hub import Hub
+
+from metatools.config.merge import MinimalMergeConfig
 
 hub = Hub()
 
-import dyne.org.funtoo.metatools.merge as merge
-import logging
-from dict_tools.data import NamespaceDict
-from metatools.tree import GitTree
-import sys
 
-async def insert_kit(ctx):
-	ctx, items_to_insert = await merge.kit.get_deepdive_kit_items(ctx)
-	if not len(items_to_insert):
-		logging.warning(f"No items to insert for {ctx.kit.name}")
-		return
-	result = merge.model.DEEPDIVE.insert_many(items_to_insert)
-	print(f"kit {ctx.kit.name} - inserted {len(result.inserted_ids)} items.")
-	if len(items_to_insert) != len(result.inserted_ids):
-		raise KeyError("Number of inserted items does not match!")
+CLI_CONFIG = {
+	"fixups_url": {"type": str},
+	"fixups_branch": {"type": str, "default": "master"},
+	"release": {"positional": True},
+	"debug": {"action": "store_true", "default": False}
+}
+
+
+async def main_thread(release, debug):
+	model = MinimalMergeConfig()
+	await model.initialize(
+		release=release,
+		debug=debug
+	)
+
+	mc = MongoClient()
+	dd = mc.metatools.deepdive
+	dd.create_index("atom")
+	dd.create_index(
+		[("kit", ASCENDING), ("category", ASCENDING), ("package", ASCENDING)])
+	dd.create_index("catpkg")
+	dd.create_index("relations")
+	dd.create_index("md5")
+	dd.create_index("files.name", partialFilterExpression={"files": {"$exists": True}})
+
+
+# async def insert_kit(ctx):
+# 	ctx, items_to_insert = await merge.kit.get_deepdive_kit_items(ctx)
+# 	if not len(items_to_insert):
+# 		logging.warning(f"No items to insert for {ctx.kit.name}")
+# 		return
+# 	result = merge.model.DEEPDIVE.insert_many(items_to_insert)
+# 	print(f"kit {ctx.kit.name} - inserted {len(result.inserted_ids)} items.")
+# 	if len(items_to_insert) != len(result.inserted_ids):
+# 		raise KeyError("Number of inserted items does not match!")
 
 
 if __name__ == "__main__":
-
-	merge.apply_config(release=sys.argv[1])
-	merge.model.GIT_CLASS = GitTree
-	merge.model.FIXUP_REPO = GitTree(
-		"kit-fixups",
-		merge.model.MERGE_CONFIG.branch("kit-fixups"),
-		url=merge.model.MERGE_CONFIG.kit_fixups,
-		root=merge.model.MERGE_CONFIG.source_trees + "/kit-fixups",
-	)
-	merge.model.META_REPO = meta_repo = GitTree(
-		"meta-repo",
-		branch=merge.model.RELEASE,
-		url=merge.model.MERGE_CONFIG.meta_repo,
-		root=merge.model.MERGE_CONFIG.dest_trees + "/meta-repo",
-		origin_check=False,
-		pull=False,
-	)
-
-	merge.model.META_REPO.initialize()
-	merge.model.FIXUP_REPO.initialize()
-	merge.model.KIT_GROUPS = list(merge.foundations.kit_groups())
-	merge.model.RELEASE_INFO = merge.foundations.release_info()
-	pipeline_keys, pipeline_groups = merge.sources.get_kits_in_correct_processing_order()
-
-	merge.model.DEEPDIVE.delete_many({})
-	for source in pipeline_keys:
-		kit_dict_list = pipeline_groups[source]
-		for kit_dict in kit_dict_list:
-			ctx = NamespaceDict({"kit": NamespaceDict(kit_dict)})
-			hub.LOOP.run_until_complete(insert_kit(ctx))
+	if hub.LOOP.run_until_complete(main_thread(sys.argv[1], False)):
+		sys.exit(0)
+	else:
+		sys.exit(1)
 

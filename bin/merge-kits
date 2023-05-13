@@ -68,7 +68,6 @@ CLI_CONFIG = {
 	"force": {"action": "store_true", "default": False},
 	"nopush": {"action": "store_true", "default": False},
 	"prod": {"action": "store_true", "default": False},
-	"db": {"action": "store_true", "default": False},
 	"create_branches": {"action": "store_true", "default": False},
 	"release": {"positional": True},
 	"debug": {"action": "store_true", "default": False},

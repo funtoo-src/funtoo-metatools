@@ -135,7 +135,7 @@ class KitGenerator:
 			model=model,
 			**model.git_kwargs
 		)
-		self.kit_cache = KitCache(name=kit.name, branch=kit.branch)
+		self.kit_cache = KitCache(model.release, name=kit.name, branch=kit.branch)
 
 	async def initialize(self):
 		await self.out_tree.initialize()
