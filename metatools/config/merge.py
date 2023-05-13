@@ -85,7 +85,7 @@ class MergeConfig(MinimalMergeConfig):
 
 	async def initialize(self, prod=False, push=False, release=None, create_branches=False, fixups_url=None,
 						 fixups_branch=None, debug=False, howdy=False):
-		await super().initialize(release=release, fixups_url=fixups_url, fixups_branch=fixups_branch, debug=debug)
+
 		self.prod = prod
 		self.push = push
 		self.create_branches = create_branches
@@ -105,6 +105,8 @@ class MergeConfig(MinimalMergeConfig):
 			self.mirror_repos = push
 			self.git_class = GitTree
 			self.git_kwargs = {"checkout_all_branches": True}
+
+		await super().initialize(release=release, fixups_url=fixups_url, fixups_branch=fixups_branch, debug=debug)
 		self.log.debug("Model initialization complete.")
 
 
