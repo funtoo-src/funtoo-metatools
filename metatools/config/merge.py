@@ -502,10 +502,12 @@ class ReleaseYAML(YAMLReader):
 		"""
 		if self.mode is None:
 			raise NotImplementedError("To use ReleaseYAML.get_repo_config(), use a MergeConfig() rather than MinimalMergeConfig()")
+
 		if self.mode not in self.remotes:
 			raise ConfigurationError(f"No remotes defined for '{self.mode}' in {self.filename}.")
 		if 'url' not in self.remotes[self.mode]:
 			raise ConfigurationError(f"No URL defined for '{self.mode}' in {self.filename}.")
+		self.model.log.debug(f"get_repo_config: self.mode {self.mode} url: {self.remotes[self.mode]}")
 		mirrs = []
 		if 'mirrors' in self.remotes[self.mode]:
 			for mirr in self.remotes[self.mode]['mirrors']:
