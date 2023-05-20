@@ -5,6 +5,7 @@ from pymongo import MongoClient, ASCENDING
 from subpop.hub import Hub
 
 from metatools.config.merge import MinimalMergeConfig
+from metatools.kit_cache import KitCache
 
 hub = Hub()
 
@@ -26,6 +27,7 @@ async def main_thread(release, debug):
 
 	mc = MongoClient()
 	dd = mc.metatools.deepdive
+	dd.delete_many({})
 	dd.create_index("atom")
 	dd.create_index(
 		[("kit", ASCENDING), ("category", ASCENDING), ("package", ASCENDING)])
@@ -34,17 +36,15 @@ async def main_thread(release, debug):
 	dd.create_index("md5")
 	dd.create_index("files.name", partialFilterExpression={"files": {"$exists": True}})
 
-
-# async def insert_kit(ctx):
-# 	ctx, items_to_insert = await merge.kit.get_deepdive_kit_items(ctx)
-# 	if not len(items_to_insert):
-# 		logging.warning(f"No items to insert for {ctx.kit.name}")
-# 		return
-# 	result = merge.model.DEEPDIVE.insert_many(items_to_insert)
-# 	print(f"kit {ctx.kit.name} - inserted {len(result.inserted_ids)} items.")
-# 	if len(items_to_insert) != len(result.inserted_ids):
-# 		raise KeyError("Number of inserted items does not match!")
-
+	for kit in model.release_yaml.iter_kits(primary=True):
+		model.log.info(kit)
+		kit_cache = KitCache(model.release, name=kit.name, branch=kit.branch)
+		model.log.info(f"Loading and inserting kit cache {kit.name} {kit.branch}")
+		kit_cache.load()
+		if len(kit_cache.json_data['atoms']):
+			result = dd.insert_many(kit_cache.json_data['atoms'].values())
+			if len(kit_cache.json_data['atoms']) != len(result.inserted_ids):
+				raise KeyError("Number of inserted items does not match!")
 
 if __name__ == "__main__":
 	if hub.LOOP.run_until_complete(main_thread(sys.argv[1], False)):
