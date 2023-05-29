@@ -58,6 +58,8 @@ class FileStoreFetchCache(FetchCache):
 		elif refresh_interval is not None:
 			if datetime.utcnow() - result.data["fetched_on"] <= refresh_interval:
 				return result.data
+			else:
+				raise CacheMiss()
 		else:
 			return result.data
 
