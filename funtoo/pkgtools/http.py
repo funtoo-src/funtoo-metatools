@@ -23,7 +23,7 @@ async def get_page(url, encoding=None, is_json=False):
 	request = FetchRequest(url=url)
 	pkgtools.fetch.set_basic_auth(request)
 	# Leverage the spider for this fetch. This bypasses the FPOS, etc:
-	result = await pkgtools.model.spider.http_fetch(request, encoding=encoding, is_json=is_json)
+	headers, result = await pkgtools.model.spider.http_fetch(request, encoding=encoding, is_json=is_json)
 	return result
 
 

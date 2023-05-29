@@ -7,8 +7,9 @@ import string
 import threading
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from json import JSONDecodeError
+from typing import Tuple, Dict
 from urllib.parse import urlparse
 
 import httpx
@@ -495,7 +496,7 @@ class WebSpider:
 			auth = None
 		return headers, auth
 
-	async def http_fetch(self, request: FetchRequest, is_json=False, encoding=None, extra_headers=None) -> (dict, str):
+	async def http_fetch(self, request: FetchRequest, is_json=False, encoding=None, extra_headers=None) -> Tuple[Dict, str]:
 		"""
 		UBER-NOTE:
 
@@ -664,7 +665,7 @@ class WebSpider:
 		"""
 		with self.DL_ACTIVE_LOCK:
 			if request.url in self.DL_ACTIVE:
-				log.warn(
+				log.warning(
 					f"WebSpider.get_existing_download:{threading.get_ident()} found active download for {request.url}")
 
 				return self.DL_ACTIVE[request.url]
