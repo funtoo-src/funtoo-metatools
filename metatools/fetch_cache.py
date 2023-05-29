@@ -45,7 +45,7 @@ class FileStoreFetchCache(FetchCache):
 		log.debug(f"Wrote to fetch cache, fetched_on: {now}")
 		self.store.write(key_dict)
 
-	async def read(self, key_dict):
+	async def read(self, key_dict, refresh_interval=None):
 		try:
 			result: StoreObject = self.store.read(key_dict)
 		except NotFoundError:
@@ -54,6 +54,10 @@ class FileStoreFetchCache(FetchCache):
 		if result is None or "fetched_on" not in result.data:
 			log.debug(f"File found but fetched_on missing.")
 			raise CacheMiss()
+		# refresh_interval is not being used by regular get_page but is used for redirects, etc:
+		elif refresh_interval is not None:
+			if datetime.utcnow() - result.data["fetched_on"] <= refresh_interval:
+				return result.data
 		else:
 			return result.data
 
