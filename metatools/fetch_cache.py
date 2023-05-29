@@ -14,7 +14,7 @@ class FetchCache:
 	async def write(self, key_dict, body=None):
 		pass
 
-	async def read(self, key_dict, max_age=None, refresh_interval=None):
+	async def read(self, key_dict, refresh_interval=None):
 		pass
 
 	async def record_fetch_failure(self, key_dict, failure_reason):
@@ -45,9 +45,7 @@ class FileStoreFetchCache(FetchCache):
 		log.debug(f"Wrote to fetch cache, fetched_on: {now}")
 		self.store.write(key_dict)
 
-	async def read(self, key_dict, max_age=None, refresh_interval=None):
-		log.debug(f"In FileStoreFetchCache.read, refresh_interval={refresh_interval}")
-		# content_kwargs is stored at None if there are none, not an empty dict:
+	async def read(self, key_dict):
 		try:
 			result: StoreObject = self.store.read(key_dict)
 		except NotFoundError:
@@ -55,13 +53,6 @@ class FileStoreFetchCache(FetchCache):
 			raise CacheMiss()
 		if result is None or "fetched_on" not in result.data:
 			log.debug(f"File found but fetched_on missing.")
-			raise CacheMiss()
-		elif refresh_interval is not None:
-			if datetime.utcnow() - result.data["fetched_on"] <= refresh_interval:
-				return result.data
-			else:
-				raise CacheMiss()
-		elif max_age is not None and datetime.utcnow() - result.data["fetched_on"] > max_age:
 			raise CacheMiss()
 		else:
 			return result.data

@@ -1,5 +1,6 @@
 import os
 from collections import defaultdict
+from datetime import timedelta
 
 import yaml
 
@@ -96,7 +97,9 @@ class AutogenConfig(StoreSpiderConfig):
 		msg_obj.send(self.moonbeam_client.client)
 		self.log.debug(f"Moonbeam: sent: {json_dict}")
 
-	async def initialize(self, fetch_cache_interval=None,
+	async def initialize(self,
+						 immediate=False,
+						 fetch_cache_interval=None,
 						 fastpull_scope=None,
 						 debug=False,
 						 fixups_url=None,
@@ -109,7 +112,7 @@ class AutogenConfig(StoreSpiderConfig):
 						 autogens=None,
 						 moonbeam=False):
 		await super().initialize(fastpull_scope=fastpull_scope, debug=debug)
-
+		self.immediate = immediate
 		self.moonbeam = moonbeam
 		if self.moonbeam:
 			self.moonbeam_client = DealerConnection("moonbeam", endpoint=f"ipc://{self.moonbeam_socket}")
@@ -159,6 +162,8 @@ class AutogenConfig(StoreSpiderConfig):
 		if fetch_cache_interval is not None:
 			# use our default unless another timedelta specified:
 			self.fetch_cache_interval = fetch_cache_interval
+		else:
+			self.fetch_cache_interval = timedelta(minutes=15)
 
 		repo_name = None
 		repo_name_path = os.path.join(self.locator.root, "profiles/repo_name")

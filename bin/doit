@@ -78,6 +78,7 @@ async def main_thread():
 	for arg in set(CLI_CONFIG.keys()) - {"immediate"}:
 		kwargs[arg] = getattr(hub.OPT, arg)
 	if hub.OPT.immediate:
+		kwargs['immediate'] = True
 		kwargs['fetch_cache_interval'] = timedelta(seconds=0)
 	await pkgtools.launch(AutogenConfig, **kwargs)
 	pkgtools.model.moonbeam_msg({"hello": "there"})

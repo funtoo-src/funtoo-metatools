@@ -1,27 +1,14 @@
 #!/usr/bin/env python3
 
-import logging
-
 import dyne.org.funtoo.metatools.pkgtools as pkgtools
 import httpx
 
-from metatools.fastpull.spider import FetchRequest, FetchError
+from metatools.fastpull.spider import FetchRequest
 
 """
 This sub implements lower-level HTTP fetching logic, such as actually grabbing the data, sending the
 proper headers and authentication, etc.
 """
-
-
-def set_basic_auth(request: FetchRequest):
-	"""
-	Keyword arguments to get_page() GET requests for authentication to certain URLs based on configuration
-	in ~/.autogen (YAML format.)
-	"""
-	if "authentication" in pkgtools.model.config:
-		if request.hostname in pkgtools.model.config["authentication"]:
-			auth_info = pkgtools.model.config["authentication"][request.hostname]
-			request.set_auth(**auth_info)
 
 
 async def get_page(url, encoding=None, is_json=False):
@@ -34,7 +21,7 @@ async def get_page(url, encoding=None, is_json=False):
 	a specific encoding. Normally, the encoding will be auto-detected and decoded for you.
 	"""
 	request = FetchRequest(url=url)
-	set_basic_auth(request)
+	pkgtools.fetch.set_basic_auth(request)
 	# Leverage the spider for this fetch. This bypasses the FPOS, etc:
 	result = await pkgtools.model.spider.http_fetch(request, encoding=encoding, is_json=is_json)
 	return result
@@ -42,7 +29,6 @@ async def get_page(url, encoding=None, is_json=False):
 
 async def get_url_from_redirect(url):
 	return await pkgtools.model.spider.get_url_from_redirect(url)
-
 
 
 async def get_response_headers(url):
