@@ -9,6 +9,8 @@ import shutil
 import dyne.org.funtoo.metatools.pkgtools as pkgtools
 from subpop.util import AttrDict
 
+from metatools.tree import run_shell
+
 
 async def add_crates_bundle(
 	hub,
@@ -233,7 +235,7 @@ async def generate_crates_from_artifact(src_artifact, src_dir_glob="*"):
 
 	cargo_lock_path = os.path.join(src_dir, "Cargo.lock")
 	if not os.path.exists(cargo_lock_path):
-		cargo_cmd = subprocess.Popen(["cargo", "update"], cwd=src_dir).wait()
+		result = await run_shell(["cargo", "update"], chdir=src_dir)
 
 	artifacts = await get_crates_artifacts(cargo_lock_path)
 
