@@ -139,7 +139,7 @@ async def really_get_page(url, encoding=None, is_json=False, cached_result=None)
 		attempts += 1
 		try:
 			try:
-				headers, result = await pkgtools.model.spider.http_fetch(request, encoding=encoding, is_json=is_json, extra_headers=extra_headers)
+				headers, result = await pkgtools.model.spider.http_fetch(request, encoding=encoding, is_json=is_json, extra_headers=extra_headers, allow_304=True)
 			except ContentNotModified:
 				result = cached_result["body"]
 				headers = cached_result["headers"] if "headers" in cached_result else {}
@@ -221,7 +221,7 @@ async def get_response_headers(fetchable, refresh_interval=None):
 	if isinstance(fetchable, pkgtools.ebuild.Artifact):
 		fetchable = fetchable.url
 	return await fetch_harness(
-		pkgtools.http.get_response_headers, fetchable, refresh_interval=refresh_interval
+		pkgtools.model.spider.get_response_headers, fetchable, refresh_interval=refresh_interval
 	)
 
 
@@ -234,7 +234,7 @@ async def get_response_filename(fetchable, refresh_interval=None):
 	"""
 	if isinstance(fetchable, pkgtools.ebuild.Artifact):
 		fetchable = fetchable.url
-	headers = await get_response_headers(fetchable,refresh_interval=refresh_interval)
+	headers = await pkgtools.model.spider.get_response_headers(fetchable,refresh_interval=refresh_interval)
 	res = re.search(r"filename=\"?(\S+)\"?", headers.get("Content-Disposition", ""))
 	return None if not res else res.group(1)
 
@@ -243,7 +243,7 @@ async def get_url_from_redirect(fetchable, refresh_interval=None):
 	if isinstance(fetchable, pkgtools.ebuild.Artifact):
 		fetchable = fetchable.url
 	return await fetch_harness(
-		pkgtools.http.get_url_from_redirect, fetchable, refresh_interval=refresh_interval
+		pkgtools.model.spider.get_url_from_redirect, fetchable, refresh_interval=refresh_interval
 	)
 
 # vim: ts=4 sw=4 noet

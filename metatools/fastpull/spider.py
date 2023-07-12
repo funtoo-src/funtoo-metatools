@@ -496,7 +496,7 @@ class WebSpider:
 			auth = None
 		return headers, auth
 
-	async def http_fetch(self, request: FetchRequest, is_json=False, encoding=None, extra_headers=None) -> Tuple[Dict, str]:
+	async def http_fetch(self, request: FetchRequest, is_json=False, encoding=None, extra_headers=None, allow_304=False) -> Tuple[Dict, str]:
 		"""
 		UBER-NOTE:
 
@@ -541,10 +541,14 @@ class WebSpider:
 			# TODO: add code to explicitly close all clients, above:
 			try:
 				if extra_headers:
-					if "If-None-Match" in extra_headers or "If-Modified-Since" in headers:
-						accept_304 = True
 					headers.update(extra_headers)
-
+				if "If-None-Match" in headers or "If-Modified-Since" in headers:
+					if not allow_304:
+						for h in ["If-None-Match", "If-Modified-Since"]:
+							if h in headers:
+								del headers[h]
+					else:
+						accept_304 = True
 				response = await http_client.get(request.url, headers=headers, auth=auth, follow_redirects=True, timeout=15)
 				log.debug(f'http_fetch: GET {response.status_code} {request.url}')
 				if accept_304 and response.status_code == 304:
@@ -657,3 +661,13 @@ class WebSpider:
 
 			log.debug(f"WebSpider.get_existing_download:{threading.get_ident()} no active download for {request.url}")
 			return None
+
+
+async def get_response_headers(url):
+	"""
+	This function will take a URL and grab its response headers. This is useful for obtaining
+	information about a URL without fetching its body.
+	"""
+	async with httpx.AsyncClient() as client:
+		resp = await client.get(url=url, follow_redirects=True)
+		return resp.headers
