@@ -152,7 +152,7 @@ class Download:
 				if not resume:
 					self.reset()
 				else:
-					headers["Range"] = f"bytes{self.filesize}-"
+					headers["Range"] = f"bytes={self.filesize}-"
 					resume = False
 				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					# We do not want to do 304. This should prevent it....
