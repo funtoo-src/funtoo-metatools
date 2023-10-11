@@ -147,13 +147,17 @@ class Download:
 		completed = False
 		received_data = False
 		try_resume = False
+		did_resume = False
 		while not completed and (try_resume or attempts < max_attempts):
 			try:
 				if not try_resume:
 					self.reset()
+					did_resume = False
 				else:
 					headers["Range"] = f"bytes={self.filesize}-"
 					try_resume = False
+					did_resume = True
+					log.warning("TRYING TO RESUME")
 				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					# We do not want to do 304. This should prevent it....
 					for bad_key in ["If-None-Match", "If-Modified-Since"]:
@@ -167,12 +171,12 @@ class Download:
 						else:
 							retry = True
 						raise FetchError(self.request,f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
-					if try_resume and response.status_code != 206:
+					if did_resume and response.status_code != 206:
 						log.warning("Server did not honor our range request!")
 						# Server decided to not honor our range request, so adjust accordingly
-						try_resume = False
+						did_resume = False
 						self.reset()
-					if not try_resume:
+					if not did_resume:
 						if "Content-Length" in response.headers:
 							self.total = int(response.headers["Content-Length"])
 							log.warning(f"TOTAL {self.total}")
