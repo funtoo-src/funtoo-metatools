@@ -235,9 +235,9 @@ class Download:
 		self.filesize += got_bytes
 		if self.download_task is not None:
 			if self.total:
-				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded)
+				self.spider.progress.update(self.download_task, completed=self.filesize)
 			else:
-				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded, total=response.num_bytes_downloaded)
+				self.spider.progress.update(self.download_task, completed=self.filesize, total=self.filesize)
 		return got_bytes
 
 	async def launch(self) -> None:
