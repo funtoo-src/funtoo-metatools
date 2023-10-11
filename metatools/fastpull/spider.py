@@ -166,13 +166,12 @@ class Download:
 							retry = False
 						else:
 							retry = True
-						raise FetchError(self.request,
-						                 f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}",
-						                 retry=retry)
-					if "Content-Length" in response.headers:
-						self.total = int(response.headers["Content-Length"])
-					else:
-						self.total = 0
+						raise FetchError(self.request,f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
+					if not resume:
+						if "Content-Length" in response.headers:
+							self.total = int(response.headers["Content-Length"])
+						else:
+							self.total = 0
 					# download_task can legitimately be zero, so check explicitly against None (our "null"):
 					if self.download_task is None:
 						# Only start download progress display if the download takes a minimum # of seconds...
@@ -187,7 +186,7 @@ class Download:
 						if bytes_received:
 							received_data = True
 					if self.total and self.total != self.filesize:
-						raise FetchError(f"Number of bytes received ({self.filesize}) does not match Content Length ({self.total})")
+						raise FetchError(self.request, msg=f"Number of bytes received ({self.filesize}) does not match Content Length ({self.total})")
 					completed = True
 			except httpx.RequestError as e:
 				if received_data:
@@ -203,7 +202,7 @@ class Download:
 				else:
 					break
 			finally:
-				if self.download_task is not None:
+				if not resume and self.download_task is not None:
 					self.spider.progress.remove_task(self.download_task)
 					self.download_task = None
 
