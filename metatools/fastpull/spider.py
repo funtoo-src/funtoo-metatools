@@ -175,6 +175,7 @@ class Download:
 					if not try_resume:
 						if "Content-Length" in response.headers:
 							self.total = int(response.headers["Content-Length"])
+							log.warning(f"TOTAL {self.total}")
 						else:
 							self.total = 0
 					else:
@@ -183,6 +184,8 @@ class Download:
 							new_tot = int(response.headers["Content-Range"].split("/")[1])
 							if new_tot != self.total:
 								raise FetchError(self.request, "bad tot!", retry=False)
+							else:
+								log.warning(f"Resume total OK {new_tot}")
 						if "Content-Length" in response.headers:
 							# Sanity check that we are resuming where we left off --
 							cl = int(response.headers["Content-Length"])
