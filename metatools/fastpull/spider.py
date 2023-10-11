@@ -129,13 +129,13 @@ class Download:
 
 	async def _http_fetch_stream(self, on_chunk):
 		"""
-        This is a low-level streaming HTTP fetcher that will call on_chunk(bytes) for each chunk. On_chunk is called with
-        literal bytes from the response body so no decoding is performed. The final_data attribute still needs
-        to be filled out (this is done by self.launch(), which calls this.)
+		This is a low-level streaming HTTP fetcher that will call on_chunk(bytes) for each chunk. On_chunk is called with
+		literal bytes from the response body so no decoding is performed. The final_data attribute still needs
+		to be filled out (this is done by self.launch(), which calls this.)
 
-        Also note that this method will now raise FetchError if it truly fails, though it also will capture some error
-        conditions internally do to proper robustifying of downloads and handle common download failure conditions itself.
-        """
+		Also note that this method will now raise FetchError if it truly fails, though it also will capture some error
+		conditions internally do to proper robustifying of downloads and handle common download failure conditions itself.
+		"""
 		client = await self.spider.acquire_http_client(self.request)
 		headers, auth = self.spider.get_headers_and_auth(self.request)
 
@@ -145,15 +145,21 @@ class Download:
 		else:
 			max_attempts = 1
 		completed = False
-
-		while not completed and attempts < max_attempts:
+		received_data = False
+		restart = False
+		restart_from = None
+		while not completed and (restart or attempts < max_attempts):
 			try:
-				self.reset()
-				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth,
-				                         follow_redirects=True) as response:
+				if not restart:
+					self.reset()
+				else:
+					headers["Range"] = f"bytes{self.filesize}-"
+					restart = False
+				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					# We do not want to do 304. This should prevent it....
 					for bad_key in ["If-None-Match", "If-Modified-Since"]:
 						assert bad_key not in client.headers
+					# TODO: add back partial resume support
 					if response.status_code not in [200, 206]:
 						if response.status_code in [400, 404, 410]:
 							# These are legitimate responses that indicate that the file does not exist. Therefore, we
@@ -174,15 +180,20 @@ class Download:
 						filename = self.request.filename
 						if self.total == 0:
 							filename = f"(stream) {filename}"
-						self.download_task = self.spider.progress.add_task("Download", filename=filename,
-						                                                   total=self.total)
+						self.download_task = self.spider.progress.add_task("Download", filename=filename, total=self.total)
 						log.debug(f"Added download task {self.download_task}, total {self.total}")
 					# DO NOT USE aiter_raw(), below!! It will result in invalid downloads from some sites!
 					async for chunk in response.aiter_bytes():
-						on_chunk(chunk, response)
+						bytes_received = on_chunk(chunk, response)
+						if bytes_received:
+							received_data = True
+					if self.total and self.total != self.filesize:
+						raise FetchError(f"Number of bytes received ({self.filesize}) does not match Content Length ({self.total})")
 					completed = True
 			except httpx.RequestError as e:
 				log.error(f"Download failure for {self.request.url}: {str(e)}")
+				if received_data:
+					continue
 				if attempts + 1 < max_attempts:
 					attempts += 1
 					log.warning(f"Retrying after download failure... {str(e)}")
@@ -199,9 +210,9 @@ class Download:
 
 	def reset(self):
 		"""
-        Reset all necessary things after an aborted download that we will retry. We have to start from the beginning.
-        :return:
-        """
+		Reset all necessary things after an aborted download that we will retry. We have to start from the beginning.
+		:return:
+		"""
 		os.makedirs(os.path.dirname(self.temp_path), exist_ok=True)
 		if self.fd:
 			self.fd.close()
@@ -214,28 +225,31 @@ class Download:
 			self.hash_calc_dict[h] = getattr(hashlib, h)()
 
 	def on_chunk(self, chunk, response):
+		got_bytes = len(chunk)
+		if not got_bytes:
+			return 0
 		self.fd.write(chunk)
 		for hash in self.hashes:
 			self.hash_calc_dict[hash].update(chunk)
-		self.filesize += len(chunk)
+		self.filesize += got_bytes
 		if self.download_task is not None:
 			if self.total:
 				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded)
 			else:
-				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded,
-				                            total=response.num_bytes_downloaded)
+				self.spider.progress.update(self.download_task, completed=response.num_bytes_downloaded, total=response.num_bytes_downloaded)
+		return got_bytes
 
 	async def launch(self) -> None:
 		"""
-        This is the lower-level download method that wraps the _http_fetch_stream() call, and ensures hashes are generated.
+		This is the lower-level download method that wraps the _http_fetch_stream() call, and ensures hashes are generated.
 
-        Upon successful completion of the download, this function will set self.final_data to the final_data (hashes and
-        size) of the downloaded file. It will also execute the completion pipeline, if any. It will return None if you
-        have no completion pipeline, and will otherwise return the result of the execution of the pipeline.
+		Upon successful completion of the download, this function will set self.final_data to the final_data (hashes and
+		size) of the downloaded file. It will also execute the completion pipeline, if any. It will return None if you
+		have no completion pipeline, and will otherwise return the result of the execution of the pipeline.
 
-        This method throw a FetchError if it encounters some kind of fetching problem, though _http_fetch_stream()
-        will try to recover from many (and will catch some FetchErrors internally to do this.)
-        """
+		This method throw a FetchError if it encounters some kind of fetching problem, though _http_fetch_stream()
+		will try to recover from many (and will catch some FetchErrors internally to do this.)
+		"""
 
 		log.debug(f"WebSpider.launch:{threading.get_ident()} spidering {self.request.url}...")
 		if not self.spider.rich:
@@ -282,14 +296,14 @@ class Download:
 
 class FetchError(Exception):
 	"""
-    When this exception is raised, we can set retry to True if the failure is something that could conceivably be
-    retried, such as a network failure. However, if we are reading from a cache, then it's just going to fail again,
-    and thus retry should have the default value of False.
+	When this exception is raised, we can set retry to True if the failure is something that could conceivably be
+	retried, such as a network failure. However, if we are reading from a cache, then it's just going to fail again,
+	and thus retry should have the default value of False.
 
-    This exception should be raised for *all* fetch-related errors in metatools. The ``retry`` field is used internally
-    to determine whether this is a request we should legitimately retry (like intermittent network issues) or if this
-    was a hard-fail and it's unlikely that retrying the operation is not likely to yield any benefit.
-    """
+	This exception should be raised for *all* fetch-related errors in metatools. The ``retry`` field is used internally
+	to determine whether this is a request we should legitimately retry (like intermittent network issues) or if this
+	was a hard-fail, and it's unlikely that retrying the operation is not likely to yield any benefit.
+	"""
 
 	def __init__(self, request: FetchRequest, msg, retry=False):
 		self.request = request
@@ -306,22 +320,22 @@ class ContentNotModified(Exception):
 
 class WebSpider:
 	"""
-    This class implements a Web Spider, which is used to quickly download a lot of things. This spider takes care
-    of downloading the files, and will also calculate cryptographic hashes for what it downloads. This is because
-    it's more efficient to calculate hashes while the download is being streamed rather than doing it after the
-    file has been completely downloaded.
+	This class implements a Web Spider, which is used to quickly download a lot of things. This spider takes care
+	of downloading the files, and will also calculate cryptographic hashes for what it downloads. This is because
+	it's more efficient to calculate hashes while the download is being streamed rather than doing it after the
+	file has been completely downloaded.
 
-    Locking Code
-    ============
+	Locking Code
+	============
 
-    The locking code below deserves some explanation. DL_ACTIVE tracks all the active downloads for
-    *all* threads that are running. DL_ACTIVE_LOCK is a lock we use to access this dictionary, when
-    we want to read or modify it.
+	The locking code below deserves some explanation. DL_ACTIVE tracks all the active downloads for
+	*all* threads that are running. DL_ACTIVE_LOCK is a lock we use to access this dictionary, when
+	we want to read or modify it.
 
-    DOWNLOAD_SLOT is the mechanism we used to ensure we only have a certain number (specified by the
-    value= parameter) of downloads active at once. Each active download will acquire a slot. When all
-    slots are exhausted, any pending downloads will wait for an active slot before they can begin.
-    """
+	DOWNLOAD_SLOT is the mechanism we used to ensure we only have a certain number (specified by the
+	value= parameter) of downloads active at once. Each active download will acquire a slot. When all
+	slots are exhausted, any pending downloads will wait for an active slot before they can begin.
+	"""
 
 	DL_ACTIVE_LOCK = threading.Lock()
 	DL_ACTIVE = dict()
@@ -373,10 +387,10 @@ class WebSpider:
 
 	async def get_url_from_redirect(self, url):
 		"""
-        This function will take a URL that redirects and grab what it redirects to. This is useful
-        for /download URLs that redirect to a tarball 'foo-1.3.2.tar.xz' that you want to download,
-        when you want to grab the '1.3.2' without downloading the file (yet).
-        """
+		This function will take a URL that redirects and grab what it redirects to. This is useful
+		for /download URLs that redirect to a tarball 'foo-1.3.2.tar.xz' that you want to download,
+		when you want to grab the '1.3.2' without downloading the file (yet).
+		"""
 		request = FetchRequest(url=url)
 		logging.info(f"Getting redirect URL from {url}...")
 		client = await self.acquire_http_client(request)
@@ -425,19 +439,19 @@ class WebSpider:
 			await self.start()
 
 		"""
-        This method attempts to start a download. It is what users of the spider should call, and will take into
-        account any in-flight downloads for the same resource, which is most efficient and safe and will prevent
-        multiple requests for the same file.
-
-        The return value of this function varies depending on the value of ``completion_pipeline``. If
-        ``completion_pipeline`` is unset, the return value of this function will be ``None``.
-
-        If a ``completion_pipeline`` of functions is specified, each item in the pipeline will be called in order.
-        The first item in the pipeline will be given the ``Download`` (this object) as an argument. The second function in the
-        pipeline will receive the output of the result of the first item, etc. The ultimate result of the pipeline
-        will be returned to the caller. This allows the completion pipeline to perform actions and potentially throw
-        exceptions, and return an object of interest to the caller of this function.
-        """
+		This method attempts to start a download. It is what users of the spider should call, and will take into
+		account any in-flight downloads for the same resource, which is most efficient and safe and will prevent
+		multiple requests for the same file.
+		
+		The return value of this function varies depending on the value of ``completion_pipeline``. If
+		``completion_pipeline`` is unset, the return value of this function will be ``None``.
+		
+		If a ``completion_pipeline`` of functions is specified, each item in the pipeline will be called in order.
+		The first item in the pipeline will be given the ``Download`` (this object) as an argument. The second function in the
+		pipeline will receive the output of the result of the first item, etc. The ultimate result of the pipeline
+		will be returned to the caller. This allows the completion pipeline to perform actions and potentially throw
+		exceptions, and return an object of interest to the caller of this function.
+		"""
 
 		if completion_pipeline is None:
 			completion_pipeline = []
@@ -465,9 +479,9 @@ class WebSpider:
 
 	def cleanup(self, response: FetchResponse):
 		"""
-        This is a utility function to clean up a temporary file provided by the spider, once the caller is done
-        with it. Typically you would call this as the very end of a completion pipeline for a successful request.
-        """
+		This is a utility function to clean up a temporary file provided by the spider, once the caller is done
+		with it. Typically you would call this as the very end of a completion pipeline for a successful request.
+		"""
 
 		if os.path.exists(response.temp_path):
 			try:
@@ -604,22 +618,22 @@ New logic:"""
 	@asynccontextmanager
 	async def acquire_download_slot(self):
 		"""
-        If you are inside this contextmanager, then it means you *have permission to start a download*.
+		If you are inside this contextmanager, then it means you *have permission to start a download*.
 
-        This code originally tried to do this, but it would deadlock::
+		This code originally tried to do this, but it would deadlock::
 
-            with DOWNLOAD_SLOT:
-                yield
+			with DOWNLOAD_SLOT:
+				yield
 
-        This code ^^ will deadlock as hit the max semaphore value. The reason? When we hit the max value, it will block
-        for a download slot in the current thread will FREEZE our thread's ioloop, which will prevent another asyncio
-        task from executing which needs to *release* the download slot -- thus the deadlock.
+		This code ^^ will deadlock as hit the max semaphore value. The reason? When we hit the max value, it will block
+		for a download slot in the current thread will FREEZE our thread's ioloop, which will prevent another asyncio
+		task from executing which needs to *release* the download slot -- thus the deadlock.
 
-        So instead of using this approach, we will attempt to acquire a download slot in a non-blocking fashion. If we
-        succeed -- great. If not, we will asyncio loop to repeatedly attempt to acquire the slot with a slight delay
-        between each attempt. This ensures that the ioloop can continue to function and release any download slots while
-        we wait.
-        """
+		So instead of using this approach, we will attempt to acquire a download slot in a non-blocking fashion. If we
+		succeed -- great. If not, we will asyncio loop to repeatedly attempt to acquire the slot with a slight delay
+		between each attempt. This ensures that the ioloop can continue to function and release any download slots while
+		we wait.
+		"""
 		try:
 			while True:
 				success = self.DOWNLOAD_SLOT.acquire(blocking=False)
@@ -651,13 +665,13 @@ New logic:"""
 	@asynccontextmanager
 	async def start_download(self, download):
 		"""
-        If you are inside the contextmanager, it means that you are ready to *start a download for a specific resource*.
+		If you are inside the contextmanager, it means that you are ready to *start a download for a specific resource*.
 
-        Automatically record the download as being active, and remove from our list when complete.
+		Automatically record the download as being active, and remove from our list when complete.
 
-        While waiting for DL_ACTIVE_LOCK will FREEZE the current thread's ioloop, this is OK because we immediately release
-        the lock after inspecting/modifying the protected resource (DL_ACTIVE in this case.)
-        """
+		While waiting for DL_ACTIVE_LOCK will FREEZE the current thread's ioloop, this is OK because we immediately release
+		the lock after inspecting/modifying the protected resource (DL_ACTIVE in this case.)
+		"""
 		try:
 			with self.DL_ACTIVE_LOCK:
 				self.DL_ACTIVE[download.request.url] = download
@@ -669,8 +683,8 @@ New logic:"""
 
 	def get_existing_download(self, request: FetchRequest):
 		"""
-        Get a download object for the file we're interested in if one is already being downloaded.
-        """
+		Get a download object for the file we're interested in if one is already being downloaded.
+		"""
 		with self.DL_ACTIVE_LOCK:
 			if request.url in self.DL_ACTIVE:
 				log.warning(
