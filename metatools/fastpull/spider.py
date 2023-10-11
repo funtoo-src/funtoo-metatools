@@ -146,15 +146,14 @@ class Download:
 			max_attempts = 1
 		completed = False
 		received_data = False
-		restart = False
-		restart_from = None
-		while not completed and (restart or attempts < max_attempts):
+		resume = False
+		while not completed and (resume or attempts < max_attempts):
 			try:
-				if not restart:
+				if not resume:
 					self.reset()
 				else:
 					headers["Range"] = f"bytes{self.filesize}-"
-					restart = False
+					resume = False
 				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					# We do not want to do 304. This should prevent it....
 					for bad_key in ["If-None-Match", "If-Modified-Since"]:
@@ -193,6 +192,7 @@ class Download:
 			except httpx.RequestError as e:
 				log.error(f"Download failure for {self.request.url}: {str(e)}")
 				if received_data:
+					resume = True
 					continue
 				if attempts + 1 < max_attempts:
 					attempts += 1
