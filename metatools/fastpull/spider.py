@@ -190,10 +190,12 @@ class Download:
 						raise FetchError(f"Number of bytes received ({self.filesize}) does not match Content Length ({self.total})")
 					completed = True
 			except httpx.RequestError as e:
-				log.error(f"Download failure for {self.request.url}: {str(e)}")
 				if received_data:
 					resume = True
+					log.error(f"Download failure for {self.request.url}: {str(e)} -- attempting to resume")
 					continue
+				else:
+					log.error(f"Download failure for {self.request.url}: {str(e)}")
 				if attempts + 1 < max_attempts:
 					attempts += 1
 					log.warning(f"Retrying after download failure... {str(e)}")
