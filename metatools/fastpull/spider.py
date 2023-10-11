@@ -146,14 +146,14 @@ class Download:
 			max_attempts = 1
 		completed = False
 		received_data = False
-		resume = False
-		while not completed and (resume or attempts < max_attempts):
+		try_resume = False
+		while not completed and (try_resume or attempts < max_attempts):
 			try:
-				if not resume:
+				if not try_resume:
 					self.reset()
 				else:
 					headers["Range"] = f"bytes={self.filesize}-"
-					resume = False
+					try_resume = False
 				async with client.stream("GET", url=self.request.url, headers=headers, auth=auth, follow_redirects=True) as response:
 					# We do not want to do 304. This should prevent it....
 					for bad_key in ["If-None-Match", "If-Modified-Since"]:
@@ -167,7 +167,12 @@ class Download:
 						else:
 							retry = True
 						raise FetchError(self.request,f"HTTP fetch_stream Error {response.status_code}: {response.reason_phrase[:120]}", retry=retry)
-					if not resume:
+					if try_resume and response.status_code != 206:
+						log.warning("Server did not honor our range request!")
+						# Server decided to not honor our range request, so adjust accordingly
+						try_resume = False
+						self.reset()
+					if not try_resume:
 						if "Content-Length" in response.headers:
 							self.total = int(response.headers["Content-Length"])
 						else:
@@ -183,14 +188,15 @@ class Download:
 					# DO NOT USE aiter_raw(), below!! It will result in invalid downloads from some sites!
 					async for chunk in response.aiter_bytes():
 						bytes_received = on_chunk(chunk, response)
+						self.filesize += bytes_received
 						if bytes_received:
 							received_data = True
 					if self.total and self.total != self.filesize:
-						raise FetchError(self.request, msg=f"Number of bytes received ({self.filesize}) does not match Content Length ({self.total})")
+						raise FetchError(self.request, msg=f"Number of bytes received ({self.filesize}) does not match Content Length ({self.total})", retry=False)
 					completed = True
 			except httpx.RequestError as e:
 				if received_data:
-					resume = True
+					try_resume = True
 					log.error(f"Download failure for {self.request.url}: {str(e)} -- attempting to resume")
 					continue
 				else:
@@ -202,7 +208,7 @@ class Download:
 				else:
 					break
 			finally:
-				if not resume and self.download_task is not None:
+				if not try_resume and self.download_task is not None:
 					self.spider.progress.remove_task(self.download_task)
 					self.download_task = None
 
@@ -232,7 +238,6 @@ class Download:
 		self.fd.write(chunk)
 		for hash in self.hashes:
 			self.hash_calc_dict[hash].update(chunk)
-		self.filesize += got_bytes
 		if self.download_task is not None:
 			if self.total:
 				self.spider.progress.update(self.download_task, completed=self.filesize)
