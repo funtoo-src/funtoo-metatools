@@ -177,6 +177,17 @@ class Download:
 							self.total = int(response.headers["Content-Length"])
 						else:
 							self.total = 0
+					else:
+						if "Content-Range" in response.headers:
+							log.warning(f"Content-Range {response.headers['Content-Range']}")
+							new_tot = int(response.headers["Content-Range"].split("/")[1])
+							if new_tot != self.total:
+								raise FetchError(self.request, "bad tot!", retry=False)
+						if "Content-Length" in response.headers:
+							# Sanity check that we are resuming where we left off --
+							cl = int(response.headers["Content-Length"])
+							if cl + self.filesize != self.total:
+								raise FetchError(self.request, f"On resume, the Content Length given to us ({cl}) plus already-received data ({self.filesize}) does not match anticipated total. {self.total}", retry=False)
 					# download_task can legitimately be zero, so check explicitly against None (our "null"):
 					if self.download_task is None:
 						# Only start download progress display if the download takes a minimum # of seconds...
