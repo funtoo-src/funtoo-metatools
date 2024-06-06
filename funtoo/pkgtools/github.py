@@ -52,6 +52,10 @@ def fetch_tag(hub, github_user, github_repo, name):
     return fetch_ref(hub, github_user, github_repo, f"tags/{name}")
 
 
+class AssetNotFoundError(Exception):
+    pass
+
+
 async def release_gen(hub, github_user, github_repo, release_data=None, tarball=None, assets: dict = None, select=None,
                       filter=None, matcher=None, transform=None, version=None, include=None,
                       sort: SortMethod = SortMethod.VERSION, **kwargs):
@@ -147,104 +151,116 @@ async def release_gen(hub, github_user, github_repo, release_data=None, tarball=
         versions_and_release_elements = sorted(versions_and_release_elements, key=lambda v: matcher.sortable(v[0]),
                                                reverse=True)
 
-    upstream_assets_by_name = {}
-    version, release = versions_and_release_elements[0]
-    tag_name = release['tag_name']
-    for asset in release['assets']:
-        upstream_assets_by_name[asset['name']] = asset
+    # Iterate, starting with most recent version. We will break from this loop if we are successful. Otherwise, we will
+    # keep trying the second-most-recent version, etc. This helps us deal with situations where not all assets are available
+    # (see FL-12418)
+    while True:
+        try:
+            if not len(versions_and_release_elements):
+                raise IndexError("No more GitHub releases available.")
+            upstream_assets_by_name = {}
+            version, release = versions_and_release_elements[0]
+            versions_and_release_elements = versions_and_release_elements[1:]
+            tag_name = release['tag_name']
+            for asset in release['assets']:
+                upstream_assets_by_name[asset['name']] = asset
 
-    if tarball or assets:
+            if tarball or assets:
 
-        # We will look for a single specified tarball, or use an assets dict to look for a collection of assets. GitHub calls
-        # these things "assets" officially. "Tarball" is sort of funtoo slang for a single asset. It doesn't need to actually
-        # be a tarball, it just usually is.
+                # We will look for a single specified tarball, or use an assets dict to look for a collection of assets. GitHub calls
+                # these things "assets" officially. "Tarball" is sort of funtoo slang for a single asset. It doesn't need to actually
+                # be a tarball, it just usually is.
 
-        # Make a singleton dictionary so we can use the same code as the assets processing code. We will convert it back
-        # after.
+                # Make a singleton dictionary so we can use the same code as the assets processing code. We will convert it back
+                # after.
 
-        if tarball:
-            assets = [tarball]
+                if tarball:
+                    assets = [tarball]
 
-        artifacts = []
-        crates_dict = {}
+                artifacts = []
+                crates_dict = {}
 
-        if isinstance(assets, dict):
-            artifacts = defaultdict(list)
-            for asset_key, asset_filenames in assets.items():
-                if not isinstance(asset_filenames, list):
-                    asset_filenames = [asset_filenames] # handle bare string
-                for asset_filename in asset_filenames:
-                    # expand {version}, etc.
-                    expanded_asset = asset_filename.format(version=version, key=asset_key, github_user=github_user, github_repo=github_repo,tag=tag_name, **kwargs)
-                    if expanded_asset in upstream_assets_by_name:
-                        upstream_asset = upstream_assets_by_name[expanded_asset]
-                        artifact = hub.Artifact(url=upstream_asset['browser_download_url'], final_name=expanded_asset)
-                        artifacts[asset_key].append(artifact)
-                        if artifact.final_name == "Cargo.lock":
-                            await artifact.fetch()
-                            crates_dict = await hub.pkgtools.rust.get_crates_artifacts(artifact.final_path)
-                    elif asset_filename == '<source.tar.gz>':
-                        url = f"https://github.com/{github_user}/{github_repo}/archive/refs/tags/{tag_name}.tar.gz"
-                        artifacts[asset_key] = hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}.tar.gz')
-                    else:
-                        raise ValueError(f"Upstream GitHub asset {expanded_asset} not found.")
-        elif isinstance(assets, list):
-            # assets is list:
-            for asset_filename in assets:
-                expanded_asset = asset_filename.format(version=version, github_user=github_user, github_repo=github_repo, tag=tag_name, **kwargs)
-                if expanded_asset in upstream_assets_by_name:
-                    upstream_asset = upstream_assets_by_name[expanded_asset]
-                    artifact = hub.Artifact(url=upstream_asset['browser_download_url'], final_name=expanded_asset)
-                    artifacts.append(artifact)
-                    if artifact.final_name == "Cargo.lock":
-                        await artifact.fetch()
-                        crates_dict = await hub.pkgtools.rust.get_crates_artifacts(artifact.final_path)
-                elif asset_filename == '<source.tar.gz>':
-                    url = f"https://github.com/{github_user}/{github_repo}/archive/refs/tags/{tag_name}.tar.gz"
-                    artifacts.append(hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}.tar.gz'))
+                if isinstance(assets, dict):
+                    artifacts = defaultdict(list)
+                    for asset_key, asset_filenames in assets.items():
+                        if not isinstance(asset_filenames, list):
+                            asset_filenames = [asset_filenames] # handle bare string
+                        for asset_filename in asset_filenames:
+                            # expand {version}, etc.
+                            expanded_asset = asset_filename.format(version=version, key=asset_key, github_user=github_user, github_repo=github_repo,tag=tag_name, **kwargs)
+                            if expanded_asset in upstream_assets_by_name:
+                                upstream_asset = upstream_assets_by_name[expanded_asset]
+                                artifact = hub.Artifact(url=upstream_asset['browser_download_url'], final_name=expanded_asset)
+                                artifacts[asset_key].append(artifact)
+                                if artifact.final_name == "Cargo.lock":
+                                    await artifact.fetch()
+                                    crates_dict = await hub.pkgtools.rust.get_crates_artifacts(artifact.final_path)
+                            elif asset_filename == '<source.tar.gz>':
+                                url = f"https://github.com/{github_user}/{github_repo}/archive/refs/tags/{tag_name}.tar.gz"
+                                artifacts[asset_key] = hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}.tar.gz')
+                            else:
+                                hub.pkgtools.model.log.warning(f"Upstream GitHub asset {expanded_asset} not found for release {version}, trying next-most-recent-version...")
+                                raise AssetNotFoundError()
+                elif isinstance(assets, list):
+                    # assets is list:
+                    for asset_filename in assets:
+                        expanded_asset = asset_filename.format(version=version, github_user=github_user, github_repo=github_repo, tag=tag_name, **kwargs)
+                        if expanded_asset in upstream_assets_by_name:
+                            upstream_asset = upstream_assets_by_name[expanded_asset]
+                            artifact = hub.Artifact(url=upstream_asset['browser_download_url'], final_name=expanded_asset)
+                            artifacts.append(artifact)
+                            if artifact.final_name == "Cargo.lock":
+                                await artifact.fetch()
+                                crates_dict = await hub.pkgtools.rust.get_crates_artifacts(artifact.final_path)
+                        elif asset_filename == '<source.tar.gz>':
+                            url = f"https://github.com/{github_user}/{github_repo}/archive/refs/tags/{tag_name}.tar.gz"
+                            artifacts.append(hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}.tar.gz'))
+                        else:
+                            hub.pkgtools.model.log.warning(f"Upstream GitHub asset {expanded_asset} not found for release {version}, trying next-most-recent-version...")
+                            raise AssetNotFoundError()
                 else:
-                     raise ValueError(f"Upstream GitHub asset {expanded_asset} not found.")
-        else:
-            raise ValueError(f"Unrecognized GitHub release_gen assets= type of {type(assets)}")
+                    raise ValueError(f"Unrecognized GitHub release_gen assets= type of {type(assets)}")
 
-        out_dict = {
-            "version": version,
-            "artifacts": artifacts,
-            "tag": tag_name,
-        }
+                out_dict = {
+                    "version": version,
+                    "artifacts": artifacts,
+                    "tag": tag_name,
+                }
 
-        if crates_dict:
-            out_dict.update(crates_dict)
+                if crates_dict:
+                    out_dict.update(crates_dict)
 
-        # Since we want the most recent release, we only process the first
-        return out_dict
+                # Since we want the most recent release, we only process the first
+                return out_dict
 
-    else:
+            else:
 
-        # We want to grab the default tarball for the associated tag:
+                # We want to grab the default tarball for the associated tag:
 
-        desired_tag = tag_name
-        hub.pkgtools.model.log.debug(f"github:release_gen: selected release version: {version}, desired tag {desired_tag}")
-        tag_data = await fetch_tag(hub, github_user, github_repo, desired_tag)
-        if tag_data is None:
-            raise ValueError(
-                f"github:release_gen: Could not retrieve SHA1 for tag {desired_tag} in github repo {github_user}/{github_repo}.")
-        sha = tag_data["object"]["sha"]
+                desired_tag = tag_name
+                hub.pkgtools.model.log.debug(f"github:release_gen: selected release version: {version}, desired tag {desired_tag}")
+                tag_data = await fetch_tag(hub, github_user, github_repo, desired_tag)
+                if tag_data is None:
+                    raise ValueError(
+                        f"github:release_gen: Could not retrieve SHA1 for tag {desired_tag} in github repo {github_user}/{github_repo}.")
+                sha = tag_data["object"]["sha"]
 
-        ########################################################################################################
-        # GitHub does not list this URL in the release's assets list, but it is always available if there is an
-        # associated tag for the release. Rather than use the tag name (which would give us a non-distinct file
-        # name), we use the sha1 to grab a specific URL and use a specific final name on disk for the artifact.
-        ########################################################################################################
+                ########################################################################################################
+                # GitHub does not list this URL in the release's assets list, but it is always available if there is an
+                # associated tag for the release. Rather than use the tag name (which would give us a non-distinct file
+                # name), we use the sha1 to grab a specific URL and use a specific final name on disk for the artifact.
+                ########################################################################################################
 
-        url = f"https://github.com/{github_user}/{github_repo}/tarball/{sha}"
-        return {
-            "version": version,
-            "artifacts": [
-                hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}-{sha[:7]}.tar.gz')],
-            "sha": sha,
-            "tag": desired_tag,
-        }
+                url = f"https://github.com/{github_user}/{github_repo}/tarball/{sha}"
+                return {
+                    "version": version,
+                    "artifacts": [
+                        hub.pkgtools.ebuild.Artifact(url=url, final_name=f'{github_repo}-{version}-{sha[:7]}.tar.gz')],
+                    "sha": sha,
+                    "tag": desired_tag,
+                }
+        except AssetNotFoundError:
+            continue
 
 
 async def iter_tags_pages(hub, github_user, github_repo):
