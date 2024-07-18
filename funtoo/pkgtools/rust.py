@@ -114,7 +114,13 @@ async def add_crates_bundle(
 	if isinstance(pkginfo["artifacts"], list):
 		pkginfo["artifacts"].append(crates_archive)
 	elif isinstance(pkginfo["artifacts"], dict):
-		pkginfo["artifacts"]["crates_bundle"] = crates_archive
+		if "global" in pkginfo["artifacts"]:
+			if isinstance(pkginfo["artifacs"]["global"], list):
+				pkginfo["artifacts"].append(crates_archive)
+			else:
+				raise ValueError("The pkginfo['artifacts']['global'] appears malformed (expecting a list)")
+		else:
+			pkginfo["artifacts"]["global"] = [crates_archive]
 	else:
 		raise ValueError(
 			f"Unrecognized type for pkginfo['artifacts']: {type(pkginfo['artifacts'])}"
