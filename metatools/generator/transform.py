@@ -1,8 +1,10 @@
 import logging
-import packaging
 import re
 import types
 from enum import Enum
+
+from metatools.version import generic
+
 
 log = logging.getLogger('metatools.autogen')
 
@@ -149,7 +151,7 @@ class RegexMatcher(Matcher):
         if "-" in version:
             version = version.replace("-", "+")
 
-        return packaging.version.parse(version)
+        return generic.parse(version)
 
 
 class TagRegexMatcher(RegexMatcher):
