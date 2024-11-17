@@ -132,7 +132,7 @@ class RegexMatcher(Matcher):
             return match.groups()[0]
 
     def sortable(self, version):
-        # NOTE: Version must be valid for packing version to avoid
+        # NOTE: Version must be valid for packaging version (24.x) to avoid
         #       exceptions. So for packages like openssh I replace
         #       postfix to manage it as build suffix after '+' char.
         if "_p" in version:
