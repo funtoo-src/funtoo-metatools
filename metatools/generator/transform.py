@@ -135,8 +135,20 @@ class RegexMatcher(Matcher):
         # NOTE: Version must be valid for packaging version (24.x) to avoid
         #       exceptions. So for packages like openssh I replace
         #       postfix to manage it as build suffix after '+' char.
+
+        # This is also possible... OMG... tag with version .1.3.2
+        if version.startswith("."):
+            version = version[1:len(version)]
         if "_p" in version:
             version = version.replace("_p", "+p")
+
+        # Yeah, it's true there are packages with
+        # mad versions
+        if "--" in version:
+            version = version.replace("--", "+")
+        if "-" in version:
+            version = version.replace("-", "+")
+
         return packaging.version.parse(version)
 
 
