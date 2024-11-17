@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from packaging import version
+from packaging_legacy.version import LegacyVersion
 
 
 def parse(v_str):
@@ -17,8 +18,10 @@ def parse(v_str):
     """
     try:
         v_obj = version.parse(v_str)
-        if v_obj.__class__.__name__ == "LegacyVersion":
-            return v_obj
     except version.InvalidVersion:
-        return version.LegacyVersion(v_str)
+        try:
+            v_obj = LegacyVersion(v_str)
+        except version.InvalidVersion:
+            # Version not supported! Try with 0.0.0
+            v_obj = version.parse('0.0.0')
     return v_obj

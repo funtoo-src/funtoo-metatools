@@ -29,6 +29,7 @@ setuptools.setup(
 		"httpx[http2]",
 		"Jinja2 >= 3",
 		"packaging",
+		"packaging-legacy",
 		"psutil",
 		"pymongo",
 		"PyYAML",
