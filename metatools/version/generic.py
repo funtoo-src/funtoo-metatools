@@ -1,7 +1,10 @@
 #!/usr/bin/python3
 
-from packaging import version
-from packaging_legacy.version import LegacyVersion
+import packaging
+if packaging.__version__.split('.')[0] == '24':
+    from packaging_legacy.version import LegacyVersion
+else:
+    from packaging.version import LegacyVersion
 
 
 def parse(v_str):
@@ -17,11 +20,11 @@ def parse(v_str):
     an exception but instead parse a string into a Version object that is sortable.
     """
     try:
-        v_obj = version.parse(v_str)
-    except version.InvalidVersion:
+        v_obj = packaging.version.parse(v_str)
+    except packaging.version.InvalidVersion:
         try:
             v_obj = LegacyVersion(v_str)
-        except version.InvalidVersion:
+        except packaging.version.InvalidVersion:
             # Version not supported! Try with 0.0.0
-            v_obj = version.parse('0.0.0')
+            v_obj = packaging.version.parse('0.0.0')
     return v_obj
