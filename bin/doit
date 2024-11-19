@@ -36,12 +36,19 @@ hub = DoItHub()
 
 import dyne.org.funtoo.metatools.pkgtools as pkgtools
 
+# Check if exists an environment variable to override the
+# default fixups url.
+DEFAULT_FIXUPS_URL = os.environ.get(
+	'FUNTOO_FIXUPS_URL',
+	"https://github.com/funtoo-src/kit-fixups.git"
+)
+
 CLI_CONFIG = {
 	"immediate": {"default": False, "action": "store_true", "help": "Never cache HTTP(s) fetches (default 15 mins)"},
 	"fastpull_scope": {"default": "local", "action": "store",
 					   "help": "Default index into fastpull for collecting artifacts."},
 	"debug": {"default": False, "action": "store_true"},
-	"fixups_url": {"default": "https://code.funtoo.org/bitbucket/scm/core/kit-fixups.git", "action": "store",
+	"fixups_url": {"default": DEFAULT_FIXUPS_URL, "action": "store",
 				   "help": "kit-fixups URL to use for cloning (for generators)"},
 	"fixups_branch": {"default": "master", "action": "store",
 					  "help": "kit-fixups branch to use for cloning (for generators)"},
