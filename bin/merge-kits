@@ -57,7 +57,10 @@ async def main_thread(args):
 	if args.remote_prod_url:
 		model.release_yaml.remotes['prod']['url'] = args.remote_prod_url
 
-	if args.remote_prod_mirrors == "none" and model.release_yaml.remotes['prod']['mirrors']:
+	# Safely access the 'mirrors' key using .get()
+	mirrors = model.release_yaml.remotes['prod'].get('mirrors')
+
+	if args.remote_prod_mirrors == "none" and mirrors is not None:
 		del model.release_yaml.remotes['prod']['mirrors']
 	elif args.remote_prod_mirrors:
 		model.release_yaml.remotes['prod']['mirrors'] = args.remote_prod_mirrors.split(",")
