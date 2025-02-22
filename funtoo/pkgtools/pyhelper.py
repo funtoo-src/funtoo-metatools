@@ -2,6 +2,7 @@
 
 import logging
 from collections import defaultdict
+from re import sub
 
 import packaging
 from packaging.version import Version
@@ -42,7 +43,7 @@ def pypi_metadata_init(local_pkginfo, json_dict):
 	if "distutils-r1" not in local_pkginfo["inherit"]:
 		local_pkginfo["inherit"].append("distutils-r1")
 	if "desc" not in local_pkginfo and "summary" in json_dict["info"] and json_dict["info"]["summary"]:
-		local_pkginfo["desc"] = json_dict["info"]["summary"].replace('"', "'")
+		local_pkginfo["desc"] = sub(r"[^a-zA-Z0-9\s.]", "",json_dict["info"]["summary"])
 	if "homepage" not in local_pkginfo and "home_page" in json_dict["info"]:
 		local_pkginfo["homepage"] = f"{json_dict['info']['home_page']}"
 		if "project_url" in json_dict["info"]:
